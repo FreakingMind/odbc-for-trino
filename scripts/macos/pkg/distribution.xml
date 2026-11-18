@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Trino ODBC Driver</title>
+    <license file="LICENSE.txt"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <options customize="allow" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <domains enable_localSystem="true" enable_anywhere="false" enable_currentUserHome="false"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="13.3"/>
+        </allowed-os-versions>
+    </volume-check>
+    <script>
+    <![CDATA[
+    function missing(path) {
+        return !system.files.fileExistsAtPath(path);
+    }
+    ]]>
+    </script>
+    <choices-outline>
+        <line choice="driver"/>
+        <line choice="iodbc"/>
+        <line choice="iodbc-admin"/>
+    </choices-outline>
+    <choice id="driver" title="Trino ODBC Driver" enabled="false"
+            description="The driver (/Library/ODBC/TrinoODBC), registered in /Library/ODBC/odbcinst.ini.">
+        <pkg-ref id="io.github.freakingmind.odbc-for-trino"/>
+    </choice>
+    <choice id="iodbc" title="iODBC driver manager"
+            selected="missing('/Library/Frameworks/iODBC.framework')"
+            description="OpenLink iODBC frameworks (/Library/Frameworks). Excel for Mac needs them to use ODBC drivers. Skipped by default when already installed.">
+        <pkg-ref id="org.iodbc.frameworks"/>
+    </choice>
+    <choice id="iodbc-admin" title="iODBC Administrator"
+            selected="missing('/Applications/iODBC/iODBC Administrator64.app')"
+            description="An app to create and edit data sources (DSNs): /Applications/iODBC/iODBC Administrator64.">
+        <pkg-ref id="org.iodbc.administrator64"/>
+    </choice>
+    <pkg-ref id="io.github.freakingmind.odbc-for-trino" version="@VERSION@" onConclusion="none">trino-odbc-driver.pkg</pkg-ref>
+    <pkg-ref id="org.iodbc.frameworks" version="3.52.16" onConclusion="none">iodbc-frameworks.pkg</pkg-ref>
+    <pkg-ref id="org.iodbc.administrator64" version="3.52.16" onConclusion="none">iodbc-administrator64.pkg</pkg-ref>
+</installer-gui-script>

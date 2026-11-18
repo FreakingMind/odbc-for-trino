@@ -1,0 +1,57 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! Please remove secrets (passwords, tokens,
+        client secrets, internal host names) from settings and logs.
+        Security problems: see SECURITY.md instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Driver version or commit
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS (Apple silicon)
+        - macOS (Intel)
+        - Windows 64-bit
+        - Windows 32-bit
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: Client application and version
+      placeholder: Excel 16.115 for Mac, Power BI Desktop 2.x, iodbctest, ...
+    validations:
+      required: true
+  - type: input
+    id: trino
+    attributes:
+      label: Trino server version and authentication
+      placeholder: Trino 478, External Auth over HTTPS
+  - type: textarea
+    id: dsn
+    attributes:
+      label: DSN settings (without secrets)
+      render: ini
+  - type: textarea
+    id: log
+    attributes:
+      label: Driver log
+      description: The relevant part of the log with loglevel=Trace (see the README for its location).
+      render: text

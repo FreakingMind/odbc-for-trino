@@ -1,0 +1,15 @@
+.vs
+out
+build
+vcpkg_installed
+CMakeFiles
+compile_commands.json
+.idea
+.cache
+docker/.generated
+
+# macOS Finder
+.DS_Store
+
+# Python
+__pycache__/

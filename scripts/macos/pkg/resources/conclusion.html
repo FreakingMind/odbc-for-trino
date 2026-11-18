@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>
+body { font: 13px -apple-system, sans-serif; }
+code, pre { font: 12px Menlo, monospace; }
+pre { background: rgba(127,127,127,0.12); padding: 6px; }
+</style>
+</head>
+<body>
+<h3>The Trino ODBC driver is installed</h3>
+<p><b>1. Create a data source.</b> Open <i>Applications &rarr; iODBC &rarr;
+iODBC Administrator64</i>, tab <b>System DSN</b> &rarr; <b>Add</b> &rarr;
+<b>Trino ODBC</b>. Enter a name (e.g. <code>Trino</code>) and add these
+keywords with <b>+</b> (double-click a cell to edit it):</p>
+<pre>hostname    https://trino.example.com
+port        443
+authmethod  External Auth
+catalog     iceberg      (optional)
+schema      sales        (optional)</pre>
+<p><b>2. Use it in Excel.</b> <i>Data &rarr; Get Data &rarr; From Database
+(Microsoft Query)</i> &rarr; tab <b>System DSN</b> &rarr; your data source. Leave
+the login fields empty; External Auth opens a browser to sign in. Write
+table names in full: <code>catalog.schema.table</code>.</p>
+<p><b>Cyrillic and other non-Latin text:</b> set Excel's language to that
+language in <i>System Settings &rarr; General &rarr; Language &amp; Region
+&rarr; Applications</i>. The system language can stay as it is.</p>
+<p>More options and help: the project README. To remove the driver:
+<code>sudo /Library/ODBC/TrinoODBC/uninstall.sh</code></p>
+</body>
+</html>

@@ -1,0 +1,8 @@
+ODBC for Trino
+Copyright 2026 Tigran Apresian and contributors
+
+Includes code contributed by others under the Apache License 2.0. Many of
+the source files have been modified from their original versions.
+
+This project is not affiliated with or endorsed by the Trino Software
+Foundation. "Trino" is a trademark of the Trino Software Foundation.

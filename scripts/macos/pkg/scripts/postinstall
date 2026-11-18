@@ -1,0 +1,6 @@
+#!/bin/sh
+# Registers the Trino ODBC driver after the .pkg installed its files.
+set -eu
+. "$(dirname "$0")/odbc-ini.sh"
+register_driver
+exit 0

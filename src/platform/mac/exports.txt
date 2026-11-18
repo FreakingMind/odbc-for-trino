@@ -1,0 +1,4 @@
+# Symbols exported from libTrinoODBC.dylib (ld64 -exported_symbols_list).
+# Only the ODBC entry points (extern "C" SQL* functions) are public; all C++
+# internals and statically linked dependencies stay hidden.
+_SQL*

@@ -1,0 +1,8 @@
+{
+  "name": "libiodbc",
+  "version": "3.52.16",
+  "description": "iODBC driver manager and ODBC installer library (the driver manager used by Excel for Mac)",
+  "homepage": "https://www.iodbc.org",
+  "license": "BSD-3-Clause OR LGPL-2.0-only",
+  "supports": "osx"
+}

@@ -1,0 +1,94 @@
+name: Windows CI
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['**']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: x64 Debug
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Run vcpkg
+        uses: lukka/run-vcpkg@v11
+
+      - name: Configure and build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          cmake --preset x64-debug
+          cmake --build --preset x64-debug
+
+      - name: Unit tests
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          ctest --preset x64-debug-unit
+
+      # Trino can't run on Windows runners, so the integration tests run
+      # against Trino responses recorded on macOS (test/replay).
+      - name: Integration tests (recorded Trino)
+        timeout-minutes: 20
+        shell: pwsh
+        run: |
+          $dsn = 'HKCU:\Software\ODBC\ODBC.INI\TrinoTestDebug'
+          New-Item -Path $dsn -Force | Out-Null
+          Set-ItemProperty -Path $dsn -Name Driver -Value "$PWD\out\build\x64-debug\TrinoODBC.dll"
+          Set-ItemProperty -Path $dsn -Name hostname -Value 'http://localhost'
+          Set-ItemProperty -Path $dsn -Name port -Value '18080'
+          Set-ItemProperty -Path $dsn -Name authmethod -Value 'No Auth'
+          Set-ItemProperty -Path $dsn -Name loglevel -Value 'Debug'
+          $env:TRINO_ODBC_LOG_FILE = "$env:RUNNER_TEMP\driver.log"
+          $sources = 'HKCU:\Software\ODBC\ODBC.INI\ODBC Data Sources'
+          New-Item -Path $sources -Force | Out-Null
+          Set-ItemProperty -Path $sources -Name TrinoTestDebug -Value 'TrinoODBC'
+
+          $replay = Start-Process -PassThru -NoNewWindow `
+            -RedirectStandardError "$env:RUNNER_TEMP\replay.log" `
+            -FilePath python -ArgumentList @(
+              'test/replay/trino_replay.py', 'replay',
+              '--recordings', 'test/replay/recordings.json.gz', '--port', '18080',
+              '--verbose')
+          Start-Sleep -Seconds 2
+          try {
+            # -V streams the test output, so a hang shows where it is.
+            ctest --test-dir out/build/x64-debug -L replay -V --timeout 600
+            $status = $LASTEXITCODE
+          } finally {
+            Stop-Process -Id $replay.Id -Force -ErrorAction SilentlyContinue
+            if ($status -ne 0) {
+              Write-Output '--- replay server (first 80 lines) ---'
+              Get-Content "$env:RUNNER_TEMP\replay.log" -TotalCount 80 -ErrorAction SilentlyContinue
+              Write-Output '--- driver log: errors ---'
+              Select-String -Path "$env:RUNNER_TEMP\driver.log" -Pattern 'ERROR|WARN|curl' -ErrorAction SilentlyContinue |
+                Select-Object -First 60 | ForEach-Object { $_.Line }
+            }
+          }
+          exit $status
+
+      - name: Upload test logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-test-logs
+          path: |
+            ${{ runner.temp }}/driver.log
+            ${{ runner.temp }}/replay.log
+          if-no-files-found: ignore

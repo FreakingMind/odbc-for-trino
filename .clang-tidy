@@ -1,0 +1,44 @@
+---
+# clang-tidy configuration. CI runs it on files changed in a pull request,
+# so the inherited upstream code can be cleaned up incrementally.
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  cert-err33-c,
+  clang-analyzer-*,
+  concurrency-*,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-virtual-class-destructor,
+  misc-include-cleaner,
+  misc-const-correctness,
+  misc-redundant-expression,
+  misc-unused-using-decls,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
+  performance-*,
+  portability-*,
+  readability-container-size-empty,
+  readability-duplicate-include,
+  readability-implicit-bool-conversion,
+  readability-inconsistent-declaration-parameter-name,
+  readability-make-member-function-const,
+  readability-misleading-indentation,
+  readability-redundant-*,
+  readability-simplify-boolean-expr
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*/(src|test)/.*'
+CheckOptions:
+  # ODBC headers define the types the driver API is written in; the driver
+  # can't include them "by what it uses".
+  - key: misc-include-cleaner.IgnoreHeaders
+    value: 'sql\.h;sqlext\.h;sqltypes\.h;sqlucode\.h;isql\.h;isqlext\.h;isqltypes\.h;iodbcunix\.h;windows\.h;.*/nlohmann/.*;.*/gtest/.*'
+  - key: readability-implicit-bool-conversion.AllowPointerConditions
+    value: true
+  - key: readability-implicit-bool-conversion.AllowIntegerConditions
+    value: true
+...

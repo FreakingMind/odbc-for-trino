@@ -1,0 +1,170 @@
+name: macOS CI
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['**']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  BREW_DEPS: ninja libiodbc googletest nlohmann-json howard-hinnant-date
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debug
+            preset: macos-debug
+            test-preset: macos-unit
+          - name: ASan + UBSan
+            preset: macos-asan
+            test-preset: macos-asan-unit
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: brew install ${BREW_DEPS}
+
+      # TODO: switch to the macos-ci preset (warnings as errors) once the
+      # inherited warnings are fixed.
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      # Keychain tests are opt-in (TRINO_ODBC_TEST_KEYCHAIN=1) and skipped
+      # here: unsigned binaries can't use the keychain without a UI prompt.
+      - name: Unit tests
+        run: ctest --preset ${{ matrix.test-preset }}
+
+      - name: Leak check
+        if: matrix.preset == 'macos-debug'
+        run: |
+          FILTER=$(ctest --preset macos-unit --show-only=json-v1 \
+            | python3 -c 'import json,sys; t=json.load(sys.stdin)["tests"][0]["command"]; print([a for a in t if a.startswith("--gtest_filter=")][0])')
+          leaks --atExit -- ./out/build/macos-debug/TestDriver "${FILTER}"
+
+  universal:
+    name: Universal Release (vcpkg)
+    runs-on: macos-15
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/../vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/../vcpkg-cache
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install build tools
+        run: brew install ninja autoconf automake libtool pkgconf
+
+      - name: Set up vcpkg
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT}"
+          "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics
+          mkdir -p "${VCPKG_DEFAULT_BINARY_CACHE}"
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-universal-osx-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'vcpkg-overlays/**') }}
+          restore-keys: vcpkg-universal-osx-
+
+      - name: Configure
+        run: cmake --preset macos-universal
+
+      - name: Build
+        run: cmake --build --preset macos-universal
+
+      - name: Unit tests (arm64)
+        run: ctest --preset macos-universal-unit
+
+      - name: Check the driver binary
+        run: |
+          LIB=out/build/macos-universal/libTrinoODBC.dylib
+          lipo "$LIB" -verify_arch arm64 x86_64
+          for ARCH in arm64 x86_64; do
+            # Only system libraries: Excel's sandbox can't load anything else.
+            if otool -arch "$ARCH" -L "$LIB" | tail -n +2 \
+                | grep -vE '^\s+(/usr/lib/|/System/Library/|@rpath/libTrinoODBC)'; then
+              echo "Unexpected non-system dependency ($ARCH)"; exit 1
+            fi
+            # Only the ODBC entry points may be exported.
+            if nm -gU -arch "$ARCH" "$LIB" | grep -v ' _SQL'; then
+              echo "Unexpected exported symbol ($ARCH)"; exit 1
+            fi
+          done
+
+      - name: Upload driver
+        uses: actions/upload-artifact@v7
+        with:
+          name: libTrinoODBC-macos-universal
+          path: out/build/macos-universal/libTrinoODBC.dylib
+          if-no-files-found: error
+
+      - name: Build the installer
+        run: |
+          scripts/macos/build-pkg.sh --version "0.0.0-${GITHUB_SHA::7}"
+          PKG=$(ls out/pkg/*.pkg)
+          # The driver, iODBC and iODBC Administrator components.
+          pkgutil --expand "$PKG" "$RUNNER_TEMP/pkg"
+          for COMPONENT in trino-odbc-driver iodbc-frameworks iodbc-administrator64; do
+            test -d "$RUNNER_TEMP/pkg/$COMPONENT.pkg"
+          done
+          pkgutil --payload-files "$PKG" | grep -q 'Library/ODBC/TrinoODBC/libTrinoODBC.dylib'
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: TrinoODBC-macos-pkg
+          path: out/pkg/*.pkg
+          if-no-files-found: error
+
+  lint:
+    name: clang-format + clang-tidy
+    runs-on: macos-15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: brew install llvm ${BREW_DEPS}
+
+      - name: Check clang-format
+        run: |
+          git ls-files '*.cpp' '*.hpp' \
+            | xargs "$(brew --prefix llvm)/bin/clang-format" --dry-run --Werror
+
+      - name: Configure
+        run: cmake --preset macos-debug
+
+      - name: clang-tidy on changed files
+        if: github.event_name == 'pull_request'
+        run: |
+          CHANGED=$(git diff --name-only --diff-filter=d \
+            "origin/${{ github.base_ref }}...HEAD" -- 'src/*.cpp')
+          if [ -z "$CHANGED" ]; then
+            echo "No C++ sources changed."
+            exit 0
+          fi
+          "$(brew --prefix llvm)/bin/clang-tidy" -p out/build/macos-debug \
+            --extra-arg=-isysroot"$(xcrun --show-sdk-path)" \
+            --warnings-as-errors='*' $CHANGED
