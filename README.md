@@ -27,9 +27,10 @@ query results into Excel, and also works with Power BI Desktop on Windows.
 
 - **Excel on both platforms.** Native installers for Windows (MSI) and macOS
   (universal `.pkg` for Apple silicon and Intel).
-- **Authentication.** No authentication, External Authentication (browser
-  sign-in through Trino), OAuth 2.0 client credentials and device flow.
-  Tokens are cached securely: DPAPI on Windows, the Keychain on macOS.
+- **Authentication.** User name and password, access tokens, External
+  Authentication (browser sign-in through Trino), OAuth 2.0 client
+  credentials and device flow, or none. OAuth tokens are cached securely:
+  DPAPI on Windows, the Keychain on macOS.
 - **TLS that follows the operating system.** Certificates trusted by Windows
   or by the macOS Keychain — including corporate roots deployed by IT — are
   trusted by the driver, with no extra configuration.
@@ -77,7 +78,8 @@ Download the installer for your platform from the
    |---|---|
    | `hostname` | `https://trino.example.com` |
    | `port` | `443` |
-   | `authmethod` | `External Auth` |
+   | `authmethod` | `Password` (or `External Auth`, …) |
+   | `user` | `alice` (optional; see below) |
    | `catalog` | `iceberg` (optional) |
    | `schema` | `sales` (optional, needs `catalog`) |
 
@@ -89,12 +91,22 @@ and iODBC are kept.
 ## Connecting from Excel
 
 **Excel for Windows:** *Data → Get Data → From Other Sources → From ODBC*,
-then choose the data source.
+then choose the data source. For `Password` or `Access Token`, choose
+**Database** when Excel asks how to connect and enter the user name and the
+password (or the token in the password field); otherwise choose **Default or
+Custom**.
 
 **Excel for Mac:** *Data → Get Data → From Database (Microsoft Query)*, open
-the **System DSN** tab and choose the data source. Leave the user name and
-password empty: with External Authentication a browser window opens for
-sign-in.
+the **System DSN** tab and choose the data source.
+
+When Excel asks for a user name and password:
+
+| `authmethod` | User name | Password |
+|---|---|---|
+| `Password` | Your Trino user (or leave empty to use the data source's `user`) | Your password |
+| `Access Token` | Empty | The token (or leave empty to use the data source's `accessToken`) |
+| `External Auth` and the OAuth 2.0 methods | Empty | Empty — a browser window opens for sign-in where needed |
+| `No Auth` | Optional Trino user | Empty |
 
 Table names are resolved against the data source's `catalog` and `schema`:
 with `catalog=iceberg` and `schema=sales`, `orders` means
@@ -114,9 +126,28 @@ keywords can also be given in a connection string, except
 |---|---|---|
 | `hostname` | `localhost` | Server URL without the port, e.g. `https://trino.example.com` |
 | `port` | `8080` | Server port |
-| `authmethod` | `No Auth` | `No Auth`, `External Auth`, `OIDC Client Cred Auth` or `Device Flow` |
+| `authmethod` | `No Auth` | `No Auth`, `Password`, `Access Token`, `External Auth`, `OIDC Client Cred Auth` or `Device Flow` |
 | `catalog` | | Default catalog for unqualified table names |
 | `schema` | | Default schema; requires `catalog` |
+
+### User and credentials
+
+| Keyword | Default | Description |
+|---|---|---|
+| `user` (`UID`) | login name | Trino user. With `No Auth` it defaults to your login name; with `Password` it is required |
+| `password` (`PWD`) | | Password for `Password` |
+| `accessToken` | | Bearer token (JWT) for `Access Token`. A token given as the password when connecting takes precedence |
+
+`UID` and `PWD` are what applications such as Excel pass from their login
+prompt; empty values keep the data source's settings. In a connection string,
+enclose a value containing `;` in braces: `PWD={pa;ss}` (write `}` inside as
+`}}`). Credentials are only sent over HTTPS: with `Password` or `Access
+Token` the `hostname` must start with `https://`.
+
+Prefer entering the password or token when connecting rather than storing
+it: `password` and `accessToken` in a data source are kept in clear text in
+`odbc.ini` (macOS) or the registry (Windows), and the Windows setup dialog
+doesn't store them.
 
 ### OAuth 2.0
 
@@ -194,6 +225,8 @@ the system can stay as it is:
 |---|---|
 | Question marks instead of letters (Excel for Mac) | Excel's interface language has no such letters in its encoding. Set Excel's language as described in [Non-Latin text](#non-latin-text-in-excel-for-mac). |
 | Certificate errors | The server certificate isn't trusted by the system. Trust the issuing authority as described in [Certificates and TLS](#certificates-and-tls). |
+| "Trino rejected the credentials (HTTP 401)" (SQLSTATE 28000) | Wrong user name, password or token, or the token has expired. |
+| "Credentials are only sent over HTTPS" | Set `hostname` to the server's `https://` URL. |
 | iODBC Administrator can't save a system DSN | `/Library/ODBC/odbc.ini` was created by another installer without write access for administrators. Run `sudo chown root:admin /Library/ODBC/odbc.ini && sudo chmod 664 /Library/ODBC/odbc.ini` once. |
 | "Table not found" or "Schema must be specified" | Set `catalog` and `schema` in the data source, or use the full name `catalog.schema.table`. |
 
@@ -212,7 +245,6 @@ check the driver log:
 - Rows are fetched one at a time; `SQLFetchScroll`, `SQLExtendedFetch` and
   `SQLBrowseConnect` are not implemented.
 - All columns are reported as nullable.
-- Password (Basic) authentication is not supported yet.
 - Network settings are fixed for now: proxies are bypassed, IPv4 and HTTP/1.1
   are used, and requests time out after 60 seconds.
 - macOS has no driver-specific setup dialog; data sources are edited in iODBC

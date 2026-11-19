@@ -1,5 +1,7 @@
 #include "driverConfig.hpp"
 
+#include <stdexcept>
+
 #include "../../trinoAPIWrapper/tlsOptions.hpp"
 #include "../../util/capitalize.hpp"
 #include "../../util/stringTrim.hpp"
@@ -30,23 +32,35 @@ std::map<std::string, LogLevel> LOG_NAME_TO_LOG_LEVEL = {
     std::make_pair("None", LL_NONE),
 };
 
-std::vector<std::string> AUTH_METHOD_NAMES = {
-    "No Auth", "External Auth", "OIDC Client Cred Auth", "Device Flow"};
+std::vector<std::string> AUTH_METHOD_NAMES = {"No Auth",
+                                              "Password",
+                                              "Access Token",
+                                              "External Auth",
+                                              "OIDC Client Cred Auth",
+                                              "Device Flow"};
 
-std::vector<ApiAuthMethod> AUTH_METHOD_VALUES = {
-    AM_NO_AUTH, AM_EXTERNAL_AUTH, AM_CLIENT_CRED_AUTH, AM_DEVICE_FLOW};
+std::vector<ApiAuthMethod> AUTH_METHOD_VALUES = {AM_NO_AUTH,
+                                                 AM_PASSWORD,
+                                                 AM_ACCESS_TOKEN,
+                                                 AM_EXTERNAL_AUTH,
+                                                 AM_CLIENT_CRED_AUTH,
+                                                 AM_DEVICE_FLOW};
 
 std::map<ApiAuthMethod, std::string> AUTH_METHOD_TO_AUTH_NAME = {
     std::make_pair(AM_NO_AUTH, "No Auth"),
     std::make_pair(AM_EXTERNAL_AUTH, "External Auth"),
     std::make_pair(AM_CLIENT_CRED_AUTH, "OIDC Client Cred Auth"),
-    std::make_pair(AM_DEVICE_FLOW, "Device Flow")};
+    std::make_pair(AM_DEVICE_FLOW, "Device Flow"),
+    std::make_pair(AM_PASSWORD, "Password"),
+    std::make_pair(AM_ACCESS_TOKEN, "Access Token")};
 
 std::map<std::string, ApiAuthMethod> AUTH_NAME_TO_AUTH_METHOD = {
     std::make_pair("No Auth", AM_NO_AUTH),
     std::make_pair("External Auth", AM_EXTERNAL_AUTH),
     std::make_pair("Oidc Client Cred Auth", AM_CLIENT_CRED_AUTH),
-    std::make_pair("Device Flow", AM_DEVICE_FLOW)};
+    std::make_pair("Device Flow", AM_DEVICE_FLOW),
+    std::make_pair("Password", AM_PASSWORD),
+    std::make_pair("Access Token", AM_ACCESS_TOKEN)};
 
 
 // All default values - do not miss any!
@@ -65,6 +79,9 @@ std::map<std::string, std::string> DRIVER_CONFIG_DEFAULT_VALUES = {
     std::make_pair("ansiEncoding", "auto"),
     std::make_pair("catalog", ""),
     std::make_pair("schema", ""),
+    std::make_pair("user", ""),
+    std::make_pair("password", ""),
+    std::make_pair("accessToken", ""),
 };
 
 // DSN
@@ -132,7 +149,16 @@ void DriverConfig::setAuthMethod(ApiAuthMethod authMethod) {
 }
 void DriverConfig::setAuthMethod(std::string authMethod) {
   std::string casedAuthMethod = capitalizedCase(authMethod);
-  this->authMethod            = AUTH_NAME_TO_AUTH_METHOD.at(casedAuthMethod);
+  auto it                     = AUTH_NAME_TO_AUTH_METHOD.find(casedAuthMethod);
+  if (it == AUTH_NAME_TO_AUTH_METHOD.end()) {
+    std::string names;
+    for (const std::string& name : AUTH_METHOD_NAMES) {
+      names += (names.empty() ? "" : ", ") + name;
+    }
+    throw std::invalid_argument("Unknown authmethod \"" + authMethod +
+                                "\"; use one of: " + names);
+  }
+  this->authMethod = it->second;
 }
 
 // OIDC Discovery URL
@@ -207,6 +233,33 @@ std::string DriverConfig::getSchema() {
 void DriverConfig::setSchema(std::string schema) {
   trim(schema);
   this->schema = schema;
+}
+
+std::string DriverConfig::getUser() {
+  return this->user;
+}
+
+void DriverConfig::setUser(std::string user) {
+  trim(user);
+  this->user = user;
+}
+
+std::string DriverConfig::getPassword() {
+  return this->password;
+}
+
+void DriverConfig::setPassword(std::string password) {
+  // Not trimmed: spaces can be part of a password.
+  this->password = password;
+}
+
+std::string DriverConfig::getAccessToken() {
+  return this->accessToken;
+}
+
+void DriverConfig::setAccessToken(std::string accessToken) {
+  trim(accessToken);
+  this->accessToken = accessToken;
 }
 
 std::string DriverConfig::getAnsiEncoding() {
@@ -315,6 +368,27 @@ DriverConfig driverConfigFromKVPs(std::map<std::string, std::string> kvps) {
   if (kvps.count("tokenendpoint")) {
     config.setTokenEndpoint(kvps.at("tokenendpoint"));
   }
+  if (kvps.count("user")) {
+    config.setUser(kvps.at("user"));
+  }
+  // UID / PWD are the standard ODBC keywords; applications such as Excel
+  // pass them, often empty, when they ask for credentials. An empty value
+  // keeps the data source's setting.
+  if (kvps.count("uid") && !kvps.at("uid").empty()) {
+    config.setUser(kvps.at("uid"));
+  }
+  if (kvps.count("password")) {
+    config.setPassword(kvps.at("password"));
+  }
+  if (kvps.count("pwd") && !kvps.at("pwd").empty()) {
+    config.setPassword(kvps.at("pwd"));
+  }
+  if (kvps.count("accessToken")) {
+    config.setAccessToken(kvps.at("accessToken"));
+  }
+  if (kvps.count("accesstoken")) {
+    config.setAccessToken(kvps.at("accesstoken"));
+  }
 
   return config;
 }
@@ -367,6 +441,15 @@ std::map<std::string, std::string> driverConfigToKVPs(DriverConfig config) {
   }
   if (config.getAnsiEncoding() != "auto") {
     kvps["ansiEncoding"] = config.getAnsiEncoding();
+  }
+  if (!config.getUser().empty()) {
+    kvps["user"] = config.getUser();
+  }
+  if (!config.getPassword().empty()) {
+    kvps["password"] = config.getPassword();
+  }
+  if (!config.getAccessToken().empty()) {
+    kvps["accessToken"] = config.getAccessToken();
   }
 
   return kvps;

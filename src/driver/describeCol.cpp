@@ -5,6 +5,7 @@
 #include <cstring>
 #include <map>
 
+#include "../trinoAPIWrapper/trinoExceptions.hpp"
 #include "../util/valuePtrHelper.hpp"
 #include "../util/writeLog.hpp"
 #include "handles/statementHandle.hpp"
@@ -39,7 +40,7 @@ SQLRETURN SQL_API SQLDescribeCol(SQLHSTMT StatementHandle,
   } catch (const std::exception& ex) {
     statement->setError(ErrorInfo("Exception thrown during SQLDescribeCol: " +
                                       std::string(ex.what()),
-                                  "HY000"));
+                                  sqlStateFor(ex)));
     return SQL_ERROR;
   }
   if (columnDescriptions.empty() && statement->trinoQuery->hasError()) {

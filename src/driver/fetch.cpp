@@ -6,6 +6,7 @@
 
 #include "fetch.hpp"
 
+#include "../trinoAPIWrapper/trinoExceptions.hpp"
 #include "../trinoAPIWrapper/trinoQuery.hpp"
 #include "../util/rowToBuffer.hpp"
 #include "../util/writeLog.hpp"
@@ -185,7 +186,7 @@ SQLRETURN fetchNextRow(Statement* statement) {
                  std::string(ex.what()));
     statement->setError(
         ErrorInfo("Exception thrown during SQLFetch: " + std::string(ex.what()),
-                  "HY000"));
+                  sqlStateFor(ex)));
     return SQL_ERROR;
   }
 }

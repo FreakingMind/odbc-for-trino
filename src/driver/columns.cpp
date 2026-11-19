@@ -2,6 +2,7 @@
 #include <sql.h>
 #include <sqlext.h>
 
+#include "../trinoAPIWrapper/trinoExceptions.hpp"
 #include "../util/stringFromChar.hpp"
 #include "../util/writeLog.hpp"
 #include "handles/statementHandle.hpp"
@@ -147,7 +148,7 @@ SQLColumns(SQLHSTMT StatementHandle,
                  std::string(ex.what()));
     statement->setError(ErrorInfo("Exception thrown during SQLColumns: " +
                                       std::string(ex.what()),
-                                  "HY000"));
+                                  sqlStateFor(ex)));
     return SQL_ERROR;
   }
   statement->executed = true;

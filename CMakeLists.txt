@@ -53,6 +53,7 @@ set(TRINO_ODBC_COMMON_SOURCES
             "src/trinoAPIWrapper/authProvider/clientCredAuthProvider.cpp"
             "src/trinoAPIWrapper/authProvider/externalAuthProvider.cpp"
             "src/trinoAPIWrapper/authProvider/noAuthProvider.cpp"
+            "src/trinoAPIWrapper/authProvider/credentialsAuthProvider.cpp"
             "src/trinoAPIWrapper/authProvider/tokenCacheAuthProviderBase.cpp"
             "src/trinoAPIWrapper/authProvider/deviceFlowAuthProvider.cpp"
             "src/trinoAPIWrapper/trinoQuery.cpp"
@@ -154,6 +155,7 @@ if (WIN32)
       "src/platform/win/platformPaths.cpp"
       "src/platform/win/systemTrustStore.cpp"
       "src/platform/win/textEncoding.cpp"
+      "src/platform/win/userName.cpp"
   )
 elseif (APPLE)
   set(TRINO_ODBC_PLATFORM_SOURCES
@@ -163,6 +165,7 @@ elseif (APPLE)
       "src/platform/mac/platformPaths.cpp"
       "src/platform/mac/systemTrustStore.cpp"
       "src/platform/posix/textEncoding.cpp"
+      "src/platform/posix/userName.cpp"
   )
 else()
   message(FATAL_ERROR "Unsupported platform: only Windows and macOS are supported")
@@ -293,7 +296,9 @@ add_executable(TestDriver
     "test/preparedStatements/testPrepare.cpp"
     "test/types/fetchBindTest.cpp"
     "test/types/fetchGetDataTest.cpp"
+    "test/unit/auth/credentialsAuthTest.cpp"
     "test/unit/auth/tlsOptionsTest.cpp"
+    "test/unit/config/driverConfigTest.cpp"
     "test/unit/config/profileReaderTest.cpp"
     "test/unit/auth/tokenExpiryTest.cpp"
     "test/unit/platform/platformPathsTest.cpp"
@@ -304,6 +309,7 @@ add_executable(TestDriver
     "test/unit/util/cryptUtilsTest.cpp"
     "test/unit/util/cryptUtilsMacTest.cpp"
     "test/unit/util/dateAndTimeUtilsTest.cpp"
+    "test/unit/util/delimKvpHelperTest.cpp"
     "test/unit/util/randomStrTest.cpp"
     "test/unit/util/rowToBufferTest.cpp"
     "test/unit/util/redactSecretsTest.cpp"
@@ -327,15 +333,19 @@ set(TRINO_ODBC_UNIT_TEST_SUITES
     Base64Test
     Base64urlDecoderTest
     CryptUtilsTest
+    CredentialsAuthTest
     CryptUtilsMacTest
     DateAndTimeUtilsTest
+    DelimKvpHelperTest
     DescriptorFieldToParameterTextTest
+    DriverConfigTest
     GTestTests
     PlatformPathsTest
     ProfileReaderTest
     RandomStrTest
     RowToBufferTest
     RedactSecretsTest
+    SqlStateTest
     StringReplaceTest
     StringTrimTest
     SystemTrustStoreTest

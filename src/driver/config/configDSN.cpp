@@ -8,6 +8,7 @@
 
 #include "../../util/cryptUtils.hpp"
 #include "../../util/delimKvpHelper.hpp"
+#include "../../util/redactSecrets.hpp"
 #include "../../util/writeLog.hpp"
 #include "dsnConfigForm.hpp"
 #include "profileReader.hpp"
@@ -33,6 +34,11 @@ void writeToProfile(DriverConfig result,
                     std::string section,
                     std::string value) {
   std::string dsn = result.getDSN();
+  if (section == "password" || section == "accessToken") {
+    // The dialog doesn't edit these: leave a value added by hand as it is
+    // rather than writing it back in clear text.
+    return;
+  }
   if (section == "clientSecret") {
     std::function<std::string(const std::string&)> encryptionFunc = nullptr;
     std::string encryptionLevel;
@@ -69,7 +75,7 @@ BOOL APIENTRY ConfigDSN(HWND hwndParent,
       parseKVPsFromNullDelimChars(lpszAttributes);
 
   WriteLog(LL_TRACE, "  lpszAttributes are: ");
-  WriteLog(LL_TRACE, attributes);
+  WriteLog(LL_TRACE, redactSecretsForLog(attributes));
 
   DSNForm form = DSNForm(hwndParent, attributes);
 
@@ -113,6 +119,13 @@ BOOL APIENTRY ConfigDSN(HWND hwndParent,
     // Just write every attribute of the driver config to the profile.
     for (auto it = kvps.begin(); it != kvps.end(); it++) {
       writeToProfile(result, it->first, it->second);
+    }
+    // Optional fields of the dialog are left out of the KVPs when empty:
+    // write them anyway, so clearing a field clears the stored value.
+    for (const char* key : {"user", "catalog", "schema"}) {
+      if (kvps.count(key) == 0) {
+        writeToProfile(result, key, "");
+      }
     }
     return true;
   } else {

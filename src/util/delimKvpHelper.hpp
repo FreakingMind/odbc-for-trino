@@ -33,6 +33,7 @@ the entire string.
 
 ex 1: hello=world;foo=bar;
 ex 2: hello=world;foo=bar
+ex 3: PWD={a;b}}c} (braced value "a;b}c": '}}' is a literal '}')
 
 This is the format used by connection strings passed into SQLDriverConnect.
 */

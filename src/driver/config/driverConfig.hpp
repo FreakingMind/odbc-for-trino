@@ -32,6 +32,9 @@ class DriverConfig {
     std::string ansiEncoding     = "auto";
     std::string catalog          = "";
     std::string schema           = "";
+    std::string user             = "";
+    std::string password         = "";
+    std::string accessToken      = "";
 
     // Metadata describing the status of this config object.
     bool isSaved = false;
@@ -94,6 +97,15 @@ class DriverConfig {
     void setCatalog(std::string catalog);
     std::string getSchema();
     void setSchema(std::string schema);
+
+    // Trino user, password ("Password") and bearer token ("Access Token").
+    // UID and PWD of a connection string or SQLConnect set user/password.
+    std::string getUser();
+    void setUser(std::string user);
+    std::string getPassword();
+    void setPassword(std::string password);
+    std::string getAccessToken();
+    void setAccessToken(std::string accessToken);
 
     // Narrow (SQL_C_CHAR) data encoding: auto | UTF-8 | IANA name (macOS).
     // See resolveAnsiEncoding in src/platform/textEncoding.hpp.

@@ -6,6 +6,32 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Password authentication (`authmethod = Password`): HTTP Basic with `user`
+  and `password`, or the `UID` and `PWD` an application such as Excel passes
+  from its login prompt (also through `SQLConnect`).
+- Access token authentication (`authmethod = Access Token`): a bearer token
+  from `accessToken`, or from the password field.
+- `user` option: the Trino user, also for `No Auth`. The Windows setup
+  dialog has a User field.
+- Connection string values in braces (`PWD={a;b}`, `}}` for `}`), so
+  passwords may contain `;`.
+
+### Changed
+
+- `No Auth` connections use the login name of the current user as the Trino
+  user (like the Trino CLI) instead of the fixed `TestUser`.
+- Errors carry specific SQLSTATEs: 28000 for missing or rejected credentials
+  (HTTP 401), 08S01 when the server can't be reached. They were all HY000.
+- An unknown `authmethod` is reported with the list of valid names.
+
+### Fixed
+
+- Data source values longer than 2 KB (such as access tokens) were cut off.
+- Clearing Catalog or Schema in the Windows setup dialog kept the old value.
+- The Windows setup dialog no longer logs secrets passed to `ConfigDSN`.
+
 ## [0.1.0] - 2026-11-19
 
 First release.

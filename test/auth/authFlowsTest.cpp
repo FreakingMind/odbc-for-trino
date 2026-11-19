@@ -18,7 +18,10 @@
 #include <string>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 #include "../../src/platform/systemTrustStore.hpp"
+#include "../../src/platform/userName.hpp"
 
 /*
 Integration tests for the authentication / TLS options against the Docker
@@ -39,6 +42,9 @@ namespace {
 const std::string CLIENT_CRED_DSN = "TrinoSecureClientCred";
 const std::string NO_AUTH_DSN     = "TrinoSecureNoAuth";
 const std::string UNTRUSTED_DSN   = "TrinoSecureUntrusted";
+const std::string PASSWORD_DSN    = "TrinoSecurePassword";
+// trino-noauth over plain HTTP.
+const std::string PLAIN_NO_AUTH_DSN = "TrinoNoAuth";
 
 std::string toLower(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
@@ -319,6 +325,77 @@ class AuthFlowsTest : public ::testing::Test {
       return std::string(buf);
     }
 
+    static std::string diagState(SQLSMALLINT handleType, SQLHANDLE handle) {
+      SQLCHAR sqlState[6]    = {0};
+      SQLCHAR message[1024]  = {0};
+      SQLINTEGER nativeError = 0;
+      SQLSMALLINT msgLen     = 0;
+      SQLRETURN ret          = SQLGetDiagRec(handleType,
+                                             handle,
+                                             1,
+                                             sqlState,
+                                             &nativeError,
+                                             message,
+                                             sizeof(message),
+                                             &msgLen);
+      if (!SQL_SUCCEEDED(ret)) {
+        return "";
+      }
+      return std::string(reinterpret_cast<char*>(sqlState));
+    }
+
+    // An access token for the client-credentials client, straight from
+    // Keycloak's token endpoint. Empty (and a test failure) on error.
+    std::string fetchAccessToken() {
+      std::string discovery =
+          readIniValue(*getEnv("ODBCINI"), CLIENT_CRED_DSN, "oidcDiscoveryUrl");
+      const std::string suffix = "/.well-known/openid-configuration";
+      EXPECT_TRUE(discovery.ends_with(suffix)) << discovery;
+      std::string tokenUrl =
+          discovery.substr(0, discovery.size() - suffix.size()) +
+          "/protocol/openid-connect/token";
+
+      CURL* curl = curl_easy_init();
+      if (curl == nullptr) {
+        ADD_FAILURE() << "curl_easy_init failed";
+        return "";
+      }
+      std::string form = "grant_type=client_credentials";
+      for (const auto& [name, key] :
+           {std::pair{"client_id", "ODBC_CLIENT_CREDENTIALS_ID"},
+            std::pair{"client_secret", "ODBC_CLIENT_CREDENTIALS_SECRET"}}) {
+        char* escaped = curl_easy_escape(curl, envValue(key).c_str(), 0);
+        form += std::string("&") + name + "=" + escaped;
+        curl_free(escaped);
+      }
+      std::string body;
+      curl_easy_setopt(curl, CURLOPT_URL, tokenUrl.c_str());
+      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, form.c_str());
+      curl_easy_setopt(curl, CURLOPT_NOPROXY, "*");
+      curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 10000L);
+      curl_easy_setopt(
+          curl,
+          CURLOPT_WRITEFUNCTION,
+          +[](char* data, size_t size, size_t count, void* out) {
+            static_cast<std::string*>(out)->append(data, size * count);
+            return size * count;
+          });
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
+      const CURLcode res = curl_easy_perform(curl);
+      curl_easy_cleanup(curl);
+      EXPECT_EQ(res, CURLE_OK) << tokenUrl;
+      nlohmann::json json = nlohmann::json::parse(body, nullptr, false);
+      if (!json.is_object() || !json.contains("access_token")) {
+        ADD_FAILURE() << "no access_token from " << tokenUrl << ": " << body;
+        return "";
+      }
+      return json["access_token"].get<std::string>();
+    }
+
+    std::string clientCredentialsUser() const {
+      return "service-account-" + envValue("ODBC_CLIENT_CREDENTIALS_ID");
+    }
+
     // Executes a query that is expected to fail and returns the statement's
     // diagnostic message.
     std::string expectExecutionFailure(SQLHDBC hDbc) {
@@ -486,4 +563,130 @@ TEST_F(AuthFlowsTest, ConsecutiveClientCredentialsConnections) {
   ASSERT_NO_FATAL_FAILURE(connectOrFail(CLIENT_CRED_DSN, "", &second));
   EXPECT_EQ(querySingleValue(second, "SELECT current_user"), expectedUser);
   EXPECT_EQ(querySingleValue(first, "SELECT 1"), "1");
+}
+
+// ---------------------------------------------------------------------------
+// Password, access token and the user of "No Auth"
+// ---------------------------------------------------------------------------
+
+TEST_F(AuthFlowsTest, PasswordFromConnectionString) {
+  SQLHDBC hDbc = nullptr;
+  ASSERT_NO_FATAL_FAILURE(connectOrFail(
+      PASSWORD_DSN, "PWD=" + envValue("TRINO_TEST_PASSWORD") + ";", &hDbc));
+  EXPECT_EQ(querySingleValue(hDbc, "SELECT current_user"),
+            envValue("TRINO_TEST_USER"));
+}
+
+TEST_F(AuthFlowsTest, PasswordWithUidOverridingTheDsn) {
+  // Excel's login prompt passes UID and PWD.
+  SQLHDBC hDbc = nullptr;
+  ASSERT_NO_FATAL_FAILURE(
+      connectOrFail(NO_AUTH_DSN,
+                    "authmethod=Password;UID=" + envValue("TRINO_TEST_USER") +
+                        ";PWD=" + envValue("TRINO_TEST_PASSWORD") + ";",
+                    &hDbc));
+  EXPECT_EQ(querySingleValue(hDbc, "SELECT current_user"),
+            envValue("TRINO_TEST_USER"));
+}
+
+TEST_F(AuthFlowsTest, PasswordThroughSqlConnect) {
+  SQLHDBC hDbc = nullptr;
+  ASSERT_EQ(SQLAllocHandle(SQL_HANDLE_DBC, hEnv, &hDbc), SQL_SUCCESS);
+  connected.push_back(hDbc);
+  const std::string user     = envValue("TRINO_TEST_USER");
+  const std::string password = envValue("TRINO_TEST_PASSWORD");
+  SQLRETURN ret              = SQLConnect(hDbc,
+                                          (SQLCHAR*)PASSWORD_DSN.c_str(),
+                                          SQL_NTS,
+                                          (SQLCHAR*)user.c_str(),
+                                          SQL_NTS,
+                                          (SQLCHAR*)password.c_str(),
+                                          SQL_NTS);
+  ASSERT_EQ(ret, SQL_SUCCESS) << diagMessage(SQL_HANDLE_DBC, hDbc);
+  EXPECT_EQ(querySingleValue(hDbc, "SELECT current_user"), user);
+}
+
+TEST_F(AuthFlowsTest, WrongPasswordFailsWith28000) {
+  SQLHDBC hDbc = nullptr;
+  ASSERT_NO_FATAL_FAILURE(connectOrFail(PASSWORD_DSN, "PWD=wrong;", &hDbc));
+  SQLHSTMT hStmt = allocStatement(hDbc);
+  EXPECT_EQ(SQLExecDirect(hStmt, (SQLCHAR*)"SELECT 1", SQL_NTS), SQL_ERROR);
+  EXPECT_EQ(diagState(SQL_HANDLE_STMT, hStmt), "28000")
+      << diagMessage(SQL_HANDLE_STMT, hStmt);
+  EXPECT_NE(diagMessage(SQL_HANDLE_STMT, hStmt).find("401"), std::string::npos);
+}
+
+TEST_F(AuthFlowsTest, MissingPasswordFailsOnConnect) {
+  SQLHDBC hDbc  = nullptr;
+  SQLRETURN ret = connect(PASSWORD_DSN, "", &hDbc);
+  EXPECT_EQ(ret, SQL_ERROR);
+  EXPECT_EQ(diagState(SQL_HANDLE_DBC, hDbc), "28000")
+      << diagMessage(SQL_HANDLE_DBC, hDbc);
+}
+
+TEST_F(AuthFlowsTest, PasswordNeverSentOverHttp) {
+  SQLHDBC hDbc  = nullptr;
+  SQLRETURN ret = connect(
+      PLAIN_NO_AUTH_DSN, "authmethod=Password;UID=alice;PWD=secret;", &hDbc);
+  EXPECT_EQ(ret, SQL_ERROR);
+  EXPECT_EQ(diagState(SQL_HANDLE_DBC, hDbc), "28000");
+  EXPECT_NE(diagMessage(SQL_HANDLE_DBC, hDbc).find("HTTPS"), std::string::npos)
+      << diagMessage(SQL_HANDLE_DBC, hDbc);
+}
+
+TEST_F(AuthFlowsTest, AccessTokenFromConnectionString) {
+  const std::string token = fetchAccessToken();
+  ASSERT_FALSE(token.empty());
+  SQLHDBC hDbc = nullptr;
+  ASSERT_NO_FATAL_FAILURE(
+      connectOrFail(NO_AUTH_DSN,
+                    "authmethod=Access Token;accesstoken=" + token + ";",
+                    &hDbc));
+  EXPECT_EQ(querySingleValue(hDbc, "SELECT current_user"),
+            clientCredentialsUser());
+}
+
+TEST_F(AuthFlowsTest, AccessTokenInPwd) {
+  const std::string token = fetchAccessToken();
+  ASSERT_FALSE(token.empty());
+  SQLHDBC hDbc = nullptr;
+  ASSERT_NO_FATAL_FAILURE(connectOrFail(
+      NO_AUTH_DSN, "authmethod=access token;PWD=" + token + ";", &hDbc));
+  EXPECT_EQ(querySingleValue(hDbc, "SELECT current_user"),
+            clientCredentialsUser());
+}
+
+TEST_F(AuthFlowsTest, InvalidAccessTokenFailsWith28000) {
+  SQLHDBC hDbc = nullptr;
+  ASSERT_NO_FATAL_FAILURE(connectOrFail(
+      NO_AUTH_DSN, "authmethod=Access Token;accesstoken=not-a-token;", &hDbc));
+  SQLHSTMT hStmt = allocStatement(hDbc);
+  EXPECT_EQ(SQLExecDirect(hStmt, (SQLCHAR*)"SELECT 1", SQL_NTS), SQL_ERROR);
+  EXPECT_EQ(diagState(SQL_HANDLE_STMT, hStmt), "28000")
+      << diagMessage(SQL_HANDLE_STMT, hStmt);
+}
+
+TEST_F(AuthFlowsTest, NoAuthSendsConfiguredUser) {
+  SQLHDBC hDbc = nullptr;
+  ASSERT_NO_FATAL_FAILURE(
+      connectOrFail(PLAIN_NO_AUTH_DSN, "user=odbc-test-user;", &hDbc));
+  EXPECT_EQ(querySingleValue(hDbc, "SELECT current_user"), "odbc-test-user");
+}
+
+TEST_F(AuthFlowsTest, NoAuthDefaultsToLoginName) {
+  const std::string login = platform::currentUserName();
+  ASSERT_FALSE(login.empty());
+  SQLHDBC hDbc = nullptr;
+  ASSERT_NO_FATAL_FAILURE(connectOrFail(PLAIN_NO_AUTH_DSN, "", &hDbc));
+  EXPECT_EQ(querySingleValue(hDbc, "SELECT current_user"), login);
+}
+
+TEST_F(AuthFlowsTest, UnreachableServerReports08S01) {
+  SQLHDBC hDbc = nullptr;
+  // Nothing listens on port 9 (discard) on the test machine.
+  ASSERT_NO_FATAL_FAILURE(connectOrFail(PLAIN_NO_AUTH_DSN, "port=9;", &hDbc));
+  SQLHSTMT hStmt = allocStatement(hDbc);
+  EXPECT_EQ(SQLExecDirect(hStmt, (SQLCHAR*)"SELECT 1", SQL_NTS), SQL_ERROR);
+  EXPECT_EQ(diagState(SQL_HANDLE_STMT, hStmt), "08S01")
+      << diagMessage(SQL_HANDLE_STMT, hStmt);
 }

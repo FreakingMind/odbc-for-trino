@@ -4,6 +4,7 @@
 
 #include <string>
 
+#include "../trinoAPIWrapper/trinoExceptions.hpp"
 #include "../util/stringFromChar.hpp"
 #include "../util/stringSplitAndTrim.hpp"
 #include "../util/writeLog.hpp"
@@ -201,7 +202,7 @@ SQLRETURN SQL_API SQLTables(SQLHSTMT StatementHandle,
     statement->executed  = false;
     statement->setError(ErrorInfo("Exception thrown during SQLTables: " +
                                       std::string(ex.what()),
-                                  "HY000"));
+                                  sqlStateFor(ex)));
     return SQL_ERROR;
   }
 }

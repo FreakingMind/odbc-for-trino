@@ -159,4 +159,26 @@ TEST_F(ProfileReaderTest, ReadsCatalogAndSchema) {
   EXPECT_EQ(DriverConfig(copy).getSchema(), "cdm_core");
 }
 
+TEST_F(ProfileReaderTest, ReadsLongValuesWhole) {
+  // Access tokens with many claims are several KB long.
+  const std::string token(10000, 'T');
+  writeFile("system-odbc.ini",
+            "[ODBC Data Sources]\n"
+            "TrinoTest = Trino ODBC\n"
+            "\n"
+            "[TrinoTest]\n"
+            "Driver      = Trino ODBC\n"
+            "authmethod  = Access Token\n"
+            "accessToken = " +
+                token +
+                "\n"
+                "user        = alice\n");
+
+  DriverConfig config = readDriverConfigFromProfile("TrinoTest");
+
+  EXPECT_EQ(config.getAccessToken(), token);
+  EXPECT_EQ(config.getUser(), "alice");
+  EXPECT_EQ(config.getAuthMethodEnum(), AM_ACCESS_TOKEN);
+}
+
 #endif // __APPLE__

@@ -8,6 +8,7 @@
 #include "config/profileReader.hpp"
 #include "handles/connHandle.hpp"
 
+#include "../trinoAPIWrapper/trinoExceptions.hpp"
 #include "../util/delimKvpHelper.hpp"
 #include "../util/redactSecrets.hpp"
 #include "../util/stringFromChar.hpp"
@@ -110,7 +111,7 @@ SQLRETURN SQL_API SQLDriverConnect(SQLHDBC ConnectionHandle,
   } catch (std::exception& e) {
     WriteLog(LL_DEBUG,
              "  Error from SQLDriverConnect: " + std::string(e.what()));
-    ErrorInfo error = ErrorInfo(e.what(), "HY000");
+    ErrorInfo error = ErrorInfo(e.what(), sqlStateFor(e));
     connection->setError(error);
     return SQL_ERROR;
   }

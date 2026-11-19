@@ -4,6 +4,7 @@
 
 #include <string>
 
+#include "../trinoAPIWrapper/trinoExceptions.hpp"
 #include "../util/valuePtrHelper.hpp"
 #include "../util/writeLog.hpp"
 #include "handles/statementHandle.hpp"
@@ -71,7 +72,7 @@ SQLRETURN SQL_API SQLColAttribute(SQLHSTMT StatementHandle,
   } catch (const std::exception& ex) {
     statement->setError(ErrorInfo("Exception thrown during SQLColAttribute: " +
                                       std::string(ex.what()),
-                                  "HY000"));
+                                  sqlStateFor(ex)));
     return SQL_ERROR;
   }
   if (columnCount == 0 && statement->trinoQuery->hasError()) {

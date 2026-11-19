@@ -27,6 +27,7 @@ constexpr int ID_STATIC_CLIENT_SECRET = 114;
 constexpr int ID_STATIC_OIDC_SCOPE    = 115;
 constexpr int ID_EDIT_CATALOG         = 116;
 constexpr int ID_EDIT_SCHEMA          = 117;
+constexpr int ID_EDIT_USER            = 118;
 constexpr int BUF_LEN                 = 1024;
 
 
@@ -68,6 +69,9 @@ DSNForm::DSNForm(HWND parent, std::map<std::string, std::string> attributes) {
   if (attributes.count("schema") > 0) {
     this->configResult.setSchema(attributes.at("schema"));
   }
+  if (attributes.count("user") > 0) {
+    this->configResult.setUser(attributes.at("user"));
+  }
 }
 
 
@@ -104,6 +108,7 @@ LRESULT CALLBACK WINDOW_CB(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
       HWND oidcScopeLabel        = GetDlgItem(hwnd, ID_STATIC_OIDC_SCOPE);
       HWND catalogItem           = GetDlgItem(hwnd, ID_EDIT_CATALOG);
       HWND schemaItem            = GetDlgItem(hwnd, ID_EDIT_SCHEMA);
+      HWND userItem              = GetDlgItem(hwnd, ID_EDIT_USER);
       char buf[BUF_LEN]          = {0};
       switch (LOWORD(wParam)) {
         case ID_BUTTON_SAVE: {
@@ -152,6 +157,11 @@ LRESULT CALLBACK WINDOW_CB(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
           driverConfigPtr->setCatalog(std::string(buf));
           GetWindowText(schemaItem, buf, BUF_LEN);
           driverConfigPtr->setSchema(std::string(buf));
+
+          // The Trino user. Passwords and tokens aren't stored by the
+          // dialog: the application asks for them when connecting.
+          GetWindowText(userItem, buf, BUF_LEN);
+          driverConfigPtr->setUser(std::string(buf));
 
           driverConfigPtr->setIsSaved(true);
 
@@ -251,7 +261,7 @@ void DSNForm::ShowDSNForm() {
                                 CW_USEDEFAULT,
                                 CW_USEDEFAULT,
                                 625,
-                                470,
+                                500,
                                 this->parent,
                                 NULL,
                                 GetModuleHandle(NULL),
@@ -273,6 +283,7 @@ void DSNForm::ShowDSNForm() {
   labelMaker(form, 250, ID_STATIC_OIDC_SCOPE, "OIDC Scope:", oidcVis);
   labelMaker(form, 280, NULL, "Catalog:", visible);
   labelMaker(form, 310, NULL, "Schema:", visible);
+  labelMaker(form, 340, NULL, "User:", visible);
 
   WriteLog(LL_TRACE, "  Creating Text Entries");
   HWND hwndDsn              = editMaker(form, 10, ID_EDIT_DSN, visible);
@@ -284,6 +295,7 @@ void DSNForm::ShowDSNForm() {
   HWND hwndOidcScope    = editMaker(form, 250, ID_EDIT_OIDC_SCOPE, oidcVis);
   HWND hwndCatalog      = editMaker(form, 280, ID_EDIT_CATALOG, visible);
   HWND hwndSchema       = editMaker(form, 310, ID_EDIT_SCHEMA, visible);
+  HWND hwndUser         = editMaker(form, 340, ID_EDIT_USER, visible);
 
   // Sometimes the DSN should be read-only such as when an existing DSN is being
   // configured. In those cases, we need to set the EDIT control to readonly as
@@ -310,14 +322,15 @@ void DSNForm::ShowDSNForm() {
   setEditText(hwndOidcScope, this->configResult.getOidcScope());
   setEditText(hwndCatalog, this->configResult.getCatalog());
   setEditText(hwndSchema, this->configResult.getSchema());
+  setEditText(hwndUser, this->configResult.getUser());
 
   WriteLog(LL_TRACE, "  Pre-poplating Comboboxes");
   setCombobox(hwndLogLevel, this->configResult.getLogLevelStr());
   setCombobox(hwndAuthMethod, this->configResult.getAuthMethodStr());
 
   WriteLog(LL_TRACE, "  Creating Buttons");
-  HWND hwndSave   = buttonMaker(form, 160, 360, ID_BUTTON_SAVE, "Save");
-  HWND hwndCancel = buttonMaker(form, 260, 360, ID_BUTTON_CANCEL, "Cancel");
+  HWND hwndSave   = buttonMaker(form, 160, 390, ID_BUTTON_SAVE, "Save");
+  HWND hwndCancel = buttonMaker(form, 260, 390, ID_BUTTON_CANCEL, "Cancel");
 
   MSG msg = {};
   WriteLog(LL_TRACE, "  Polling...");

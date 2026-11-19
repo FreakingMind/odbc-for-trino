@@ -1,5 +1,7 @@
 #include "connectionConfig.hpp"
+
 #include <nlohmann/json.hpp>
+#include <stdexcept>
 
 #ifdef _WIN32
 #include <windns.h>
@@ -8,10 +10,12 @@
 #pragma comment(lib, "Ws2_32.lib")
 #endif
 
+#include "../platform/userName.hpp"
 #include "../util/callbackHelper.hpp"
 #include "../util/stringTrim.hpp"
 #include "../util/writeLog.hpp"
 #include "authProvider/clientCredAuthProvider.hpp"
+#include "authProvider/credentialsAuthProvider.hpp"
 #include "authProvider/deviceFlowAuthProvider.hpp"
 #include "authProvider/externalAuthProvider.hpp"
 #include "authProvider/noAuthProvider.hpp"
@@ -126,7 +130,8 @@ ConnectionConfig::ConnectionConfig(std::string hostname,
                                    std::string clientSecret,
                                    std::string oidcScope,
                                    std::string grantType,
-                                   std::string tokenEndpoint) {
+                                   std::string tokenEndpoint,
+                                   const AuthCredentials& credentials) {
 
   this->hostname       = hostname;
   this->port           = port;
@@ -143,9 +148,30 @@ ConnectionConfig::ConnectionConfig(std::string hostname,
     throw std::invalid_argument("hostname");
   }
 
+  checkCredentials(authMethod, hostname, credentials);
+
   switch (authMethod) {
     case AM_NO_AUTH: {
-      this->authConfigPtr = getNoAuthConfigPtr(hostname, port, connectionName);
+      // Like the Trino CLI, default to the login name of the current user.
+      std::string user = credentials.user;
+      if (user.empty()) {
+        user = platform::currentUserName();
+      }
+      if (user.empty()) {
+        user = "trino-odbc";
+      }
+      this->authConfigPtr =
+          getNoAuthConfigPtr(hostname, port, connectionName, user);
+      break;
+    }
+    case AM_PASSWORD: {
+      this->authConfigPtr =
+          getPasswordAuthConfigPtr(hostname, port, connectionName, credentials);
+      break;
+    }
+    case AM_ACCESS_TOKEN: {
+      this->authConfigPtr = getAccessTokenAuthConfigPtr(
+          hostname, port, connectionName, credentials);
       break;
     }
     case AM_EXTERNAL_AUTH: {
@@ -177,10 +203,9 @@ ConnectionConfig::ConnectionConfig(std::string hostname,
     }
 
     default: {
-      WriteLog(LL_ERROR,
-               "  ERROR: connection config got unimplemented external auth "
-               "method value: " +
-                   std::to_string(authMethod));
+      // Every later request would dereference the missing provider.
+      throw std::invalid_argument("Unsupported authentication method " +
+                                  std::to_string(authMethod));
     }
   }
 }
@@ -279,6 +304,19 @@ CURL* ConnectionConfig::getCurl() {
                "  Windows DNS override for libcurl is: " + resolveEntry);
     }
 #endif
+    // A password or token is attached to every request, including the
+    // nextUri links the server returns: never let one of those be plain
+    // HTTP (e.g. behind a TLS-terminating proxy).
+    if (this->authMethod == AM_PASSWORD ||
+        this->authMethod == AM_ACCESS_TOKEN) {
+      curl_easy_setopt(this->curl, CURLOPT_PROTOCOLS_STR, "https");
+      if (this->tlsOptions.verification == SslVerification::None) {
+        WriteLog(LL_WARN,
+                 "  WARNING: sslVerification=NONE: the server's identity "
+                 "isn't checked, so the credentials could reach an "
+                 "impostor");
+      }
+    }
     // Enable gzip and/or deflate on responses
     curl_easy_setopt(this->curl, CURLOPT_ACCEPT_ENCODING, "gzip, deflate");
   }

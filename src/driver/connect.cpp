@@ -7,6 +7,7 @@
 #include "config/profileReader.hpp"
 #include "handles/connHandle.hpp"
 
+#include "../trinoAPIWrapper/trinoExceptions.hpp"
 #include "../util/stringFromChar.hpp"
 #include "../util/writeLog.hpp"
 
@@ -29,6 +30,20 @@ SQLRETURN SQL_API SQLConnect(SQLHDBC ConnectionHandle,
   try {
     std::string dsn     = stringFromChar(DSNChars, NameLength1);
     DriverConfig config = readDriverConfigFromProfile(dsn);
+    // The application's user name and password override the data source,
+    // like UID and PWD in a connection string; empty ones keep it.
+    if (UserNameChars != nullptr) {
+      std::string user = stringFromChar(UserNameChars, NameLength2);
+      if (!user.empty()) {
+        config.setUser(user);
+      }
+    }
+    if (AuthenticationChars != nullptr) {
+      std::string password = stringFromChar(AuthenticationChars, NameLength3);
+      if (!password.empty()) {
+        config.setPassword(password);
+      }
+    }
 
     // It's kind of unfortunate that we can't set the log level of the driver
     // until we've read the DSN in some way.
@@ -40,7 +55,7 @@ SQLRETURN SQL_API SQLConnect(SQLHDBC ConnectionHandle,
     connection->connected = true;
   } catch (const std::exception& e) {
     WriteLog(LL_ERROR, "  ERROR: SQLConnect failed: " + std::string(e.what()));
-    connection->setError(ErrorInfo(e.what(), "HY000"));
+    connection->setError(ErrorInfo(e.what(), sqlStateFor(e)));
     return SQL_ERROR;
   }
   return SQL_SUCCESS;

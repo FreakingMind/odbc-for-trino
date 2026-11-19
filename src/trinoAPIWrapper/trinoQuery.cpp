@@ -340,13 +340,14 @@ void TrinoQuery::post() {
     // Surface the actual cause to the application (SQLGetDiagRec), not just
     // a status code: TLS and network problems have no HTTP status at all.
     if (!transportError.empty()) {
-      throw std::runtime_error("Could not connect to Trino at " + statementURL +
-                               ": " + transportError);
+      throw ConnectionError("Could not connect to Trino at " + statementURL +
+                            ": " + transportError);
     }
     if (httpStatusCode == 401) {
-      throw std::runtime_error(
+      throw AuthError(
           "Trino rejected the credentials (HTTP 401 Unauthorized). Check the "
-          "DSN's authentication settings.");
+          "user name and password or the data source's authentication "
+          "settings.");
     }
     throw std::runtime_error("Unexpected Trino response status " +
                              std::to_string(httpStatusCode) + " from " +

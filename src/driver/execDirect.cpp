@@ -2,6 +2,7 @@
 #include <sql.h>
 #include <string.h>
 
+#include "../trinoAPIWrapper/trinoExceptions.hpp"
 #include "../trinoAPIWrapper/trinoQuery.hpp"
 #include "../util/stringFromChar.hpp"
 #include "../util/writeLog.hpp"
@@ -51,7 +52,7 @@ SQLRETURN SQL_API SQLExecDirect(SQLHSTMT StatementHandle,
     // to make it possible to tell what happened here.
     ErrorInfo errorInfo("Exception thrown during SQLExecDirect: " +
                             std::string(ex.what()),
-                        "HY000");
+                        sqlStateFor(ex));
     statementPtr->setError(errorInfo);
     return SQL_ERROR;
   }

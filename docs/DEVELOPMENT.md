@@ -123,6 +123,9 @@ export ODBCINSTINI=$PWD/docker/.generated/odbcinst.ini
 ctest --test-dir out/build/macos-debug -L integration
 ```
 
+Run `docker/setup.sh` again after pulling changes that add test data sources
+(for example `TrinoSecurePassword`); it keeps the existing certificate.
+
 Besides the driver test suite this runs two clients through the real iODBC
 driver manager, the way Excel for Mac loads the driver: `iodbc_unicode` (a
 Unicode application) and `iodbc_ansi` (an ANSI application using Mac

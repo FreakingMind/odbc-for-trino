@@ -9,6 +9,7 @@
 
 #include "apiAuthMethod.hpp"
 #include "authProvider/authConfig.hpp"
+#include "authProvider/authCredentials.hpp"
 #include "environmentConfig.hpp"
 #include "tlsOptions.hpp"
 
@@ -49,7 +50,8 @@ class ConnectionConfig {
                      std::string clientSecret,
                      std::string oidcScope,
                      std::string grantType,
-                     std::string tokenEndpoint);
+                     std::string tokenEndpoint,
+                     const AuthCredentials& credentials = {});
 
     ~ConnectionConfig();
     // Must be called before the first getCurl().

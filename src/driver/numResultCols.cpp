@@ -1,6 +1,7 @@
 #include "../util/windowsLean.hpp"
 #include <sql.h>
 
+#include "../trinoAPIWrapper/trinoExceptions.hpp"
 #include "../util/writeLog.hpp"
 #include "handles/statementHandle.hpp"
 
@@ -28,7 +29,7 @@ SQLRETURN SQL_API SQLNumResultCols(SQLHSTMT StatementHandle,
                  std::string(ex.what()));
     statement->setError(ErrorInfo("Exception thrown during SQLNumResultCols: " +
                                       std::string(ex.what()),
-                                  "HY000"));
+                                  sqlStateFor(ex)));
     return SQL_ERROR;
   }
   WriteLog(LL_TRACE,

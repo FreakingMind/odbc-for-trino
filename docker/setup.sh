@@ -57,6 +57,7 @@ TrinoSecureExternalAuth = Trino ODBC
 TrinoSecureDeviceFlow   = Trino ODBC
 TrinoSecureNoAuth       = Trino ODBC
 TrinoSecureUntrusted    = Trino ODBC
+TrinoSecurePassword     = Trino ODBC
 
 ; Used by the integration test suite (test/constants.cpp).
 [TrinoTestDebug]
@@ -120,5 +121,14 @@ Driver     = Trino ODBC
 hostname   = https://localhost
 port       = 8443
 authmethod = No Auth
+
+; Password authentication; the password comes from the application (PWD).
+[TrinoSecurePassword]
+Driver     = Trino ODBC
+hostname   = https://localhost
+port       = 8443
+sslCaFile  = $(pwd)/$OUT/server.crt
+authmethod = Password
+user       = $TRINO_TEST_USER
 INI
 echo "Generated $OUT/odbc.ini and $OUT/odbcinst.ini (driver: $DRIVER_LIB)"

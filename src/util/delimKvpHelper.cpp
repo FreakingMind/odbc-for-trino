@@ -68,12 +68,41 @@ std::string stripQuotes(std::string s, char quoteChar) {
   return s;
 }
 
+namespace {
+
+/*
+ODBC connection strings may enclose a value in braces so it can contain the
+delimiter: PWD={a;b}. A '}' inside is written as '}}'. On success, sets
+*value and returns the position just after the closing brace; returns
+nullptr if the brace is never closed.
+*/
+const char* parseBracedValue(const char* openBrace, std::string* value) {
+  value->clear();
+  const char* p = openBrace + 1;
+  while (*p != '\0') {
+    if (*p == '}') {
+      if (*(p + 1) == '}') {
+        value->push_back('}');
+        p += 2;
+        continue;
+      }
+      return p + 1;
+    }
+    value->push_back(*p);
+    p++;
+  }
+  return nullptr;
+}
+
+} // namespace
+
 std::map<std::string, std::string>
 parseKVPsFromDelimStr(const std::string& kvpStr,
                       char delim,
                       bool lowercaseKeys,
                       bool trimKeysWhitespace,
-                      bool stripDoubleQuotes) {
+                      bool stripDoubleQuotes,
+                      bool bracedValues) {
   std::map<std::string, std::string> kvps;
 
   if (kvpStr.empty()) {
@@ -97,14 +126,24 @@ parseKVPsFromDelimStr(const std::string& kvpStr,
 
     const char* valueStart = separator + 1;
     const char* valueEnd   = valueStart;
-
-    // Find the next null character indicating the end
-    // of the value
-    while (*valueEnd != delim and *valueEnd != '\0') {
-      valueEnd++;
+    std::string value;
+    const char* afterBrace = nullptr;
+    if (bracedValues && *valueStart == '{') {
+      afterBrace = parseBracedValue(valueStart, &value);
     }
-
-    std::string value(valueStart, valueEnd - valueStart);
+    if (afterBrace != nullptr) {
+      // Anything between the closing brace and the delimiter is ignored.
+      valueEnd = afterBrace;
+      while (*valueEnd != delim and *valueEnd != '\0') {
+        valueEnd++;
+      }
+    } else {
+      // Find the delimiter or the end of the string.
+      while (*valueEnd != delim and *valueEnd != '\0') {
+        valueEnd++;
+      }
+      value.assign(valueStart, valueEnd - valueStart);
+    }
 
     // We might want to remove any whitespace from the keys
     if (trimKeysWhitespace) {
@@ -137,8 +176,13 @@ parseKVPsFromSemicolonDelimStr(const std::string& kvpStr) {
   bool lowercaseKeys      = true;
   bool trimKeysWhitespace = true;
   bool stripDoubleQuotes  = false;
-  return parseKVPsFromDelimStr(
-      kvpStr, delimiter, lowercaseKeys, trimKeysWhitespace, stripDoubleQuotes);
+  bool bracedValues       = true;
+  return parseKVPsFromDelimStr(kvpStr,
+                               delimiter,
+                               lowercaseKeys,
+                               trimKeysWhitespace,
+                               stripDoubleQuotes,
+                               bracedValues);
 }
 
 std::map<std::string, std::string>
@@ -147,8 +191,13 @@ parseKVPsFromCommaDelimStr(const std::string& kvpStr, bool forceLowercaseKeys) {
   bool lowercaseKeys      = forceLowercaseKeys;
   bool trimKeysWhitespace = true;
   bool stripDoubleQuotes  = true;
-  return parseKVPsFromDelimStr(
-      kvpStr, delimiter, lowercaseKeys, trimKeysWhitespace, stripDoubleQuotes);
+  bool bracedValues       = false;
+  return parseKVPsFromDelimStr(kvpStr,
+                               delimiter,
+                               lowercaseKeys,
+                               trimKeysWhitespace,
+                               stripDoubleQuotes,
+                               bracedValues);
 }
 
 std::string

@@ -77,16 +77,19 @@ void Connection::configure(DriverConfig config) {
                ansiEncodingName(this->ansiEncoding) +
                " (ansiEncoding=" + config.getAnsiEncoding() + ")");
 
-  this->connectionConfig = new ConnectionConfig(config.getHostname(),
-                                                config.getPortNum(),
-                                                config.getAuthMethodEnum(),
-                                                config.getDSN(),
-                                                config.getOidcDiscoveryUrl(),
-                                                config.getClientId(),
-                                                config.getClientSecret(),
-                                                config.getOidcScope(),
-                                                config.getGrantType(),
-                                                config.getTokenEndpoint());
+  this->connectionConfig = new ConnectionConfig(
+      config.getHostname(),
+      config.getPortNum(),
+      config.getAuthMethodEnum(),
+      config.getDSN(),
+      config.getOidcDiscoveryUrl(),
+      config.getClientId(),
+      config.getClientSecret(),
+      config.getOidcScope(),
+      config.getGrantType(),
+      config.getTokenEndpoint(),
+      AuthCredentials{
+          config.getUser(), config.getPassword(), config.getAccessToken()});
 
   // Default catalog and schema of the session.
   const std::string catalog =

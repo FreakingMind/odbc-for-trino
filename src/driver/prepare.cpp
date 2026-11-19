@@ -3,6 +3,7 @@
 #include <sql.h>
 #include <sqlext.h>
 
+#include "../trinoAPIWrapper/trinoExceptions.hpp"
 #include "../util/randomStr.hpp"
 #include "../util/stringFromChar.hpp"
 #include "../util/writeLog.hpp"
@@ -70,7 +71,7 @@ SQLRETURN SQL_API SQLPrepare(SQLHSTMT StatementHandle,
     // to make it possible to tell what happened here.
     ErrorInfo errorInfo("Exception thrown during SQLPrepare: " +
                             std::string(ex.what()),
-                        "HY000");
+                        sqlStateFor(ex));
     statementPtr->setError(errorInfo);
     return SQL_ERROR;
   }

@@ -8,6 +8,8 @@
 #include <mutex>
 #include <odbcinst.h>
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "../../util/cryptUtils.hpp"
 #include "../../util/writeLog.hpp"
@@ -75,23 +77,31 @@ std::mutex profileMutex;
 } // namespace
 
 std::string readFromPrivateProfile(std::string dsn, std::string key) {
-  // Big buffer to hold values pulled out of the profile.
-  char value[2048];
-
   std::string defaultVal = "";
   if (DRIVER_CONFIG_DEFAULT_VALUES.count(key)) {
     defaultVal = DRIVER_CONFIG_DEFAULT_VALUES.at(key);
   }
 
-  selectDsnConfigMode();
-  SQLGetPrivateProfileString(dsn.c_str(),
-                             key.c_str(),
-                             defaultVal.c_str(),
-                             value,
-                             sizeof(value),
-                             "ODBC.INI");
-
-  return std::string(value);
+  // Values can be long (access tokens with many claims run to several KB):
+  // grow the buffer while a value fills it, instead of cutting it off.
+  std::vector<char> value(4096);
+  for (;;) {
+    selectDsnConfigMode();
+    const int length =
+        SQLGetPrivateProfileString(dsn.c_str(),
+                                   key.c_str(),
+                                   defaultVal.c_str(),
+                                   value.data(),
+                                   static_cast<int>(value.size()),
+                                   "ODBC.INI");
+    if (length < static_cast<int>(value.size()) - 1 ||
+        value.size() >= 1024 * 1024) {
+      break;
+    }
+    value.assign(value.size() * 4, '\0');
+  }
+  value.back() = '\0';
+  return std::string(value.data());
 }
 
 
@@ -124,6 +134,10 @@ DriverConfig readDriverConfigFromProfile(std::string dsn) {
   config.setAnsiEncoding(readFromPrivateProfile(dsn, "ansiEncoding"));
   config.setCatalog(readFromPrivateProfile(dsn, "catalog"));
   config.setSchema(readFromPrivateProfile(dsn, "schema"));
+  config.setUser(readFromPrivateProfile(dsn, "user"));
+  // Stored in clear text: prefer letting the application ask for them.
+  config.setPassword(readFromPrivateProfile(dsn, "password"));
+  config.setAccessToken(readFromPrivateProfile(dsn, "accessToken"));
 
   std::string secretEncryptionLevel =
       readFromPrivateProfile(dsn, "secretEncryptionLevel");
