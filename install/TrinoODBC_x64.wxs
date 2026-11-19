@@ -4,7 +4,7 @@
 
   <Package Name="TrinoODBC 64-bit"
            Language="1033"
-           Version="0.1.0"
+           Version="0.2.0"
            Manufacturer="Tigran Apresian"
            UpgradeCode="2cc2e3fc-3a87-493d-99d0-643c3dd1df59"
            InstallerVersion="500"

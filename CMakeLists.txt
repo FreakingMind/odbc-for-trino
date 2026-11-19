@@ -9,7 +9,7 @@ if (POLICY CMP0141)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
 
-project ("TrinoODBC" VERSION 0.1.0)
+project ("TrinoODBC" VERSION 0.2.0)
 
 # The driver version, reported as SQL_DRIVER_VER (##.##.####).
 function(trino_odbc_zero_pad value width out)

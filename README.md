@@ -144,6 +144,10 @@ enclose a value containing `;` in braces: `PWD={pa;ss}` (write `}` inside as
 `}}`). Credentials are only sent over HTTPS: with `Password` or `Access
 Token` the `hostname` must start with `https://`.
 
+Excel keeps the credentials entered at its prompt with the query, so
+**Refresh** doesn't ask again; they may be saved in the workbook file, so
+take care when sharing workbooks.
+
 Prefer entering the password or token when connecting rather than storing
 it: `password` and `accessToken` in a data source are kept in clear text in
 `odbc.ini` (macOS) or the registry (Windows), and the Windows setup dialog
