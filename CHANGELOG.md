@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `tokenLifetime` option: how long an OAuth token whose expiry can't be read
+  is used before signing in again (default: until the server rejects it).
+
+### Fixed
+
+- A token rejected by Trino (HTTP 401, e.g. expired or revoked) is renewed
+  and the request repeated once, also while reading results, instead of
+  failing until the application reconnects. With OAuth 2.0 refresh tokens
+  on the server the renewal needs no browser sign-in.
+- External Authentication failed right after signing in when Trino issued
+  encrypted tokens (OAuth 2.0 refresh tokens enabled on the server).
+- A `varchar` or `decimal` column described without type arguments crashed
+  the driver.
+
 ## [0.2.0] - 2026-11-19
 
 ### Added

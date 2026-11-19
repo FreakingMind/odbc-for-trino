@@ -1,6 +1,8 @@
 #include "driverConfig.hpp"
 
 #include <stdexcept>
+#include <string>
+#include <utility>
 
 #include "../../trinoAPIWrapper/tlsOptions.hpp"
 #include "../../util/capitalize.hpp"
@@ -82,6 +84,7 @@ std::map<std::string, std::string> DRIVER_CONFIG_DEFAULT_VALUES = {
     std::make_pair("user", ""),
     std::make_pair("password", ""),
     std::make_pair("accessToken", ""),
+    std::make_pair("tokenLifetime", "0"),
 };
 
 // DSN
@@ -262,6 +265,28 @@ void DriverConfig::setAccessToken(std::string accessToken) {
   this->accessToken = accessToken;
 }
 
+long long DriverConfig::getTokenLifetime() const {
+  return this->tokenLifetime;
+}
+
+void DriverConfig::setTokenLifetime(std::string seconds) {
+  trim(seconds);
+  if (seconds.empty()) {
+    this->tokenLifetime = 0;
+    return;
+  }
+  const bool digitsOnly =
+      seconds.size() <= 9 &&
+      seconds.find_first_not_of("0123456789") == std::string::npos;
+  if (!digitsOnly) {
+    throw std::invalid_argument("tokenLifetime must be a number of seconds "
+                                "(0: until the server rejects the token), "
+                                "got \"" +
+                                seconds + "\"");
+  }
+  this->tokenLifetime = std::stoll(seconds);
+}
+
 std::string DriverConfig::getAnsiEncoding() {
   return this->ansiEncoding;
 }
@@ -389,6 +414,12 @@ DriverConfig driverConfigFromKVPs(std::map<std::string, std::string> kvps) {
   if (kvps.count("accesstoken")) {
     config.setAccessToken(kvps.at("accesstoken"));
   }
+  if (kvps.count("tokenLifetime")) {
+    config.setTokenLifetime(kvps.at("tokenLifetime"));
+  }
+  if (kvps.count("tokenlifetime")) {
+    config.setTokenLifetime(kvps.at("tokenlifetime"));
+  }
 
   return config;
 }
@@ -450,6 +481,9 @@ std::map<std::string, std::string> driverConfigToKVPs(DriverConfig config) {
   }
   if (!config.getAccessToken().empty()) {
     kvps["accessToken"] = config.getAccessToken();
+  }
+  if (config.getTokenLifetime() != 0) {
+    kvps["tokenLifetime"] = std::to_string(config.getTokenLifetime());
   }
 
   return kvps;

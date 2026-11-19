@@ -56,6 +56,13 @@ class ConnectionConfig {
     ~ConnectionConfig();
     // Must be called before the first getCurl().
     void setTlsOptions(const TlsOptions& options);
+    // Lifetime of tokens whose expiry can't be read (seconds; 0: until the
+    // server rejects them).
+    void setTokenLifetime(long long seconds);
+    // Call after a response with HTTP 401. True if the credentials can be
+    // renewed: the next getCurl() logs in again and the request should be
+    // retried once.
+    bool renewRejectedCredentials();
     std::string const getHostname();
     std::string const getServerName();
     std::string const getStatementUrl();

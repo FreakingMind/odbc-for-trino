@@ -48,6 +48,24 @@ void TokenCacheAuthProviderBase::refresh(
   this->setAccessTokenHeader(accessToken);
 }
 
+bool TokenCacheAuthProviderBase::onCredentialsRejected(
+    const std::string& challenge) {
+  // The next request logs in again instead of resending this token. The
+  // cache keeps it until the new one replaces it.
+  if (this->tokenCache) {
+    this->tokenCache->clearAccessToken();
+  }
+  this->headers.erase("Authorization");
+  this->rejectionChallenge = challenge;
+  return true;
+}
+
+void TokenCacheAuthProviderBase::setTokenLifetime(long long seconds) {
+  if (this->tokenCache) {
+    this->tokenCache->setTokenLifetime(seconds);
+  }
+}
+
 void TokenCacheAuthProviderBase::applyTokenIfNotExpired() {
   // The first thing to do when asked to refresh the token is to check
   // the token cache to see if we just need to apply it. Not having

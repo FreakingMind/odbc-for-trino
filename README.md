@@ -167,6 +167,16 @@ doesn't store them.
 | `clientSecret` | | Client secret (client credentials flow) |
 | `oidcScope` | | Requested scopes |
 | `secretEncryptionLevel` | `user` | Windows: protection scope of the stored client secret |
+| `tokenLifetime` | `0` | Seconds a token whose expiry can't be read is used before signing in again; `0` keeps it until the server rejects it |
+
+When Trino rejects a token (it expired or was revoked), the driver signs in
+again once and repeats the request, the way Trino's JDBC driver does. With
+OAuth 2.0 refresh tokens enabled on the server, Trino renews the token
+itself and no browser window opens; otherwise External Authentication opens
+the browser again. Tokens that are readable JWTs are renewed shortly before
+they expire. Trino's own tokens with refresh tokens enabled are encrypted, so
+their expiry can't be read; set `tokenLifetime` only if you want them
+renewed ahead of time.
 
 ### TLS
 

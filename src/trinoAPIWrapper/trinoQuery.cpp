@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <chrono>
 #include <curl/curl.h>
+#include <curl/easy.h>
 #include <functional>
 #include <iostream>
 #include <ranges>
@@ -293,8 +294,6 @@ void TrinoQuery::post() {
     f(this);
   }
 
-  CURL* curl = this->connectionConfig->getCurl();
-
   // DIAGNOSTIC: log prepared statement header at POST time
   std::string diagPrepHdr =
       this->connectionConfig->getRequestHeader(PREPARE_HEADER);
@@ -303,20 +302,32 @@ void TrinoQuery::post() {
                diagPrepHdr + "\"");
 
   std::string statementURL = this->connectionConfig->getStatementUrl();
-  curl_easy_setopt(curl, CURLOPT_URL, statementURL.c_str());
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query.c_str());
-
-  CURLcode res = curl_easy_perform(curl);
-
+  CURLcode res             = CURLE_OK;
   std::string transportError;
-  if (res != CURLE_OK) {
-    char* errorBuffer = nullptr;
-    curl_easy_getinfo(curl, CURLINFO_PRIVATE, &errorBuffer);
-    transportError = std::string(curl_easy_strerror(res));
-    if (errorBuffer && *errorBuffer) {
-      transportError += ": " + std::string(errorBuffer);
+  // A rejected token (HTTP 401) is renewed once and the query posted again.
+  for (int attempt = 0;; attempt++) {
+    CURL* curl = this->connectionConfig->getCurl();
+    curl_easy_setopt(curl, CURLOPT_URL, statementURL.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query.c_str());
+
+    res = curl_easy_perform(curl);
+
+    transportError.clear();
+    if (res != CURLE_OK) {
+      const char* errorBuffer = nullptr;
+      curl_easy_getinfo(curl, CURLINFO_PRIVATE, &errorBuffer);
+      transportError = std::string(curl_easy_strerror(res));
+      if (errorBuffer && *errorBuffer) {
+        transportError += ": " + std::string(errorBuffer);
+      }
+      WriteLog(LL_ERROR, "CURL error: " + transportError);
     }
-    WriteLog(LL_ERROR, "CURL error: " + transportError);
+    if (res == CURLE_OK && attempt == 0 &&
+        this->connectionConfig->getLastHTTPStatusCode() == 401 &&
+        this->connectionConfig->renewRejectedCredentials()) {
+      continue;
+    }
+    break;
   }
 
   long httpStatusCode = this->connectionConfig->getLastHTTPStatusCode();
@@ -369,6 +380,9 @@ void TrinoQuery::poll(TrinoQueryPollMode mode) {
 
   CURL* curl    = this->connectionConfig->getCurl();
   int pollCount = 1;
+  // A token rejected mid-query (HTTP 401) is renewed once per poll and the
+  // same page requested again.
+  bool renewedCredentials = false;
   while (!this->completed) {
     // Since we're reusing the curl handle, we need to clear any
     // data returned from it. This is kind of ugly, but it is
@@ -379,6 +393,18 @@ void TrinoQuery::poll(TrinoQueryPollMode mode) {
 
     CURLcode res;
     res = curl_easy_perform(curl);
+    if (res == CURLE_OK &&
+        this->connectionConfig->getLastHTTPStatusCode() == 401) {
+      if (!renewedCredentials &&
+          this->connectionConfig->renewRejectedCredentials()) {
+        renewedCredentials = true;
+        curl               = this->connectionConfig->getCurl();
+        continue;
+      }
+      throw AuthError(
+          "Trino rejected the credentials (HTTP 401 Unauthorized) while "
+          "reading the results of a query.");
+    }
     UpdateStatus updateStatus;
     if (res == CURLE_OK) {
       handlePreparedStatementHeaders();

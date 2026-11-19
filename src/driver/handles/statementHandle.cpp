@@ -28,9 +28,9 @@ void Statement::columnsChangedCallback(TrinoQuery* trinoQuery) {
       // type arguments. Decimal types use a numerical precision radix of 10,
       // but that is set by the TRINO_RAW_TYPE_TO_NUM_PREC_RADIX lookup.
       field.precision =
-          colDescription.getTypeArguments()[0]["value"].get<SQLCHAR>();
+          colDescription.getTypeArguments().at(0).at("value").get<SQLCHAR>();
       field.scale =
-          colDescription.getTypeArguments()[1]["value"].get<SQLCHAR>();
+          colDescription.getTypeArguments().at(1).at("value").get<SQLCHAR>();
     }
     // Not all types have precision, but if they do, set it.
     if (TRINO_RAW_TYPE_TO_PRECISION.contains(trinoRawType)) {

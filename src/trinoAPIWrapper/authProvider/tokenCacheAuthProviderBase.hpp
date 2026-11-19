@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <optional>
 #include <string>
 
 #include "curl/curl.h"
@@ -21,11 +22,16 @@ class TokenCacheAuthProviderBase : public AuthConfig {
     refresh(CURL* curl,
             std::string* responseData,
             std::map<std::string, std::string>* responseHeaderData) override;
+    bool onCredentialsRejected(const std::string& challenge) override;
+    void setTokenLifetime(long long seconds) override;
     virtual ~TokenCacheAuthProviderBase() = default;
 
   protected:
     std::string tokenId;
     std::optional<TokenCacheEntry> tokenCache;
+    // WWW-Authenticate of the response that rejected the last token: tells
+    // External Auth where to get a new one. Consumed by the next login.
+    std::string rejectionChallenge;
     // This is pure virtual, it requires an implementation in the subclass.
     virtual std::string obtainAccessToken(
         CURL* curl,

@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <exception>
 
+#include "../../trinoAPIWrapper/columnDescription.hpp"
+
 std::unordered_map<std::string, SQLSMALLINT> TRINO_RAW_TYPE_TO_ODBC_TYPE_CODE =
     {
         std::make_pair("bigint", SQL_BIGINT),
@@ -95,8 +97,10 @@ std::unordered_map<std::string, SQLCHAR> TRINO_RAW_TYPE_TO_PRECISION = {
 namespace {
 SQLULEN inferVarcharCharacterLength(const ColumnDescription& description) {
   try {
-    const json& arguments        = description.getTypeArguments();
-    const SQLULEN declaredLength = arguments[0]["value"].get<SQLULEN>();
+    const json& arguments = description.getTypeArguments();
+    // at() throws for missing arguments (a plain "varchar"); operator[] on
+    // a const json would read out of bounds.
+    const SQLULEN declaredLength = arguments.at(0).at("value").get<SQLULEN>();
     if (declaredLength > 0) {
       return std::min<SQLULEN>(declaredLength, TRINO_ODBC_MAX_TEXT_CHARS);
     }

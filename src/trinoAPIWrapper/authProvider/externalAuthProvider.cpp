@@ -33,19 +33,15 @@ struct ExternalAuthParams {
     std::string* responseData                              = nullptr;
     std::map<std::string, std::string>* responseHeaderData = nullptr;
     std::map<std::string, std::string>* requestHeaders     = nullptr;
+    // WWW-Authenticate of a response that rejected the previous token. If it
+    // names a token server, it is used instead of asking for a challenge.
+    std::string challenge;
 };
 
 
-std::string refreshExternalAuth(ExternalAuthParams& params) {
-  if (not params.responseData) {
-    return "";
-  }
-  if (not params.responseHeaderData) {
-    return "";
-  }
-
-  WriteLog(LL_TRACE, "  Attempting external authentication");
-
+// Sends an unauthenticated request and returns Trino's WWW-Authenticate
+// challenge. Throws if there is none.
+std::string requestChallenge(const ExternalAuthParams& params) {
   std::string URL = params.hostname + ":" + std::to_string(params.port) + "/" +
                     EXTERNAL_AUTH_TRIGGER_ENDPOINT;
   // In order to make sure we reauthenticate, we need to NOT pass
@@ -101,13 +97,35 @@ std::string refreshExternalAuth(ExternalAuthParams& params) {
         "challenge, HTTP " +
         std::to_string(http_code) + ") at " + URL);
   }
+  return params.responseHeaderData->at("www-authenticate");
+}
+
+std::string refreshExternalAuth(const ExternalAuthParams& params) {
+  if (not params.responseData) {
+    return "";
+  }
+  if (not params.responseHeaderData) {
+    return "";
+  }
+
+  WriteLog(LL_TRACE, "  Attempting external authentication");
+
+  // Like Trino's JDBC driver, follow the challenge of the response that
+  // rejected the token: with refresh tokens enabled, Trino names only a
+  // token server there and renews the token without a new sign-in.
+  std::string wwwAuthHeader;
+  if (params.challenge.find("x_token_server") != std::string::npos) {
+    WriteLog(LL_DEBUG, "  Using the challenge of the rejected request");
+    wwwAuthHeader = params.challenge;
+  } else {
+    wwwAuthHeader = requestChallenge(params);
+  }
 
   // Trino may send multiple www-authenticate challenges (e.g., Basic and
   // Bearer) as separate HTTP headers. They are stored concatenated with
   // newlines. Find the Bearer challenge that contains the redirect params
   // needed for external authentication.
-  std::string wwwAuthHeader = params.responseHeaderData->at("www-authenticate");
-  std::string bearerPrefix  = "Bearer ";
+  const std::string bearerPrefix = "Bearer ";
   std::string headerKVPs;
 
   size_t bearerPos = wwwAuthHeader.find(bearerPrefix);
@@ -130,14 +148,20 @@ std::string refreshExternalAuth(ExternalAuthParams& params) {
   // of key vaule pairs.
   auto authServerInfo = parseKVPsFromCommaDelimStr(headerKVPs);
 
-  // One of the key-value pairs is the x_redirect_server, which is
-  // where you go to start authentication. It's an endpoint on the
-  // Trino coordinator.
-  std::string redirectServer = authServerInfo.at("x_redirect_server");
-  WriteLog(LL_INFO, "  Authenticating to: " + redirectServer);
-
-  // This kicks off the auth process in a browser window.
-  openURLInDefaultBrowser(redirectServer);
+  if (authServerInfo.count("x_token_server") == 0) {
+    throw std::runtime_error(
+        "Trino's External Authentication challenge names no token server");
+  }
+  // x_redirect_server is where the user signs in: an endpoint on the Trino
+  // coordinator, opened in the browser. Without it Trino renews the token
+  // itself and only the token server is polled.
+  if (authServerInfo.count("x_redirect_server") != 0) {
+    const std::string redirectServer = authServerInfo.at("x_redirect_server");
+    WriteLog(LL_INFO, "  Authenticating to: " + redirectServer);
+    openURLInDefaultBrowser(redirectServer);
+  } else {
+    WriteLog(LL_INFO, "  Renewing the token without a browser sign-in");
+  }
 
   // Once that's done, we need to hit the a token server to obtain
   // an auth token. This is another endpoint on the trino coordinator
@@ -246,6 +270,8 @@ class ExternalAuthConfig : public TokenCacheAuthProviderBase {
       params.responseData       = responseData;
       params.responseHeaderData = responseHeaderData;
       params.requestHeaders     = &this->headers;
+      params.challenge          = this->rejectionChallenge;
+      this->rejectionChallenge.clear();
 
       // Obtain a fresh auth token
       return refreshExternalAuth(params);
