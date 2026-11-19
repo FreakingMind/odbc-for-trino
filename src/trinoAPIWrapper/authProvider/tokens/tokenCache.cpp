@@ -44,46 +44,82 @@ bool tokenNeedsRefresh(long long now, long long expiresAt, long long issuedAt) {
 }
 
 
+bool accessTokenNeedsRefresh(long long now,
+                             const std::string& accessToken,
+                             const json& claims,
+                             long long obtainedAt,
+                             long long tokenLifetime) {
+  if (accessToken.empty()) {
+    return true;
+  }
+  const auto expiresAt = claims.value<long long>("exp", 0LL);
+  if (expiresAt > 0) {
+    return tokenNeedsRefresh(
+        now, expiresAt, claims.value<long long>("iat", 0LL));
+  }
+  if (tokenLifetime <= 0) {
+    // Unknown expiry: keep using it until the server rejects it.
+    return false;
+  }
+  if (obtainedAt <= 0) {
+    // Its age is unknown (e.g. cached by an older driver version).
+    return true;
+  }
+  return tokenNeedsRefresh(now, obtainedAt + tokenLifetime, obtainedAt);
+}
+
+
 TokenCacheEntry::TokenCacheEntry(std::string accessToken,
                                  std::string refreshToken,
-                                 std::string tokenId) {
+                                 std::string tokenId,
+                                 long long obtainedAt) {
   this->accessToken  = accessToken;
   this->refreshToken = refreshToken;
   this->tokenId      = tokenId;
-  if (not this->accessToken.empty()) {
-    this->parsedAccessToken = parseAccessToken(this->accessToken);
-  } else {
-    // Initialize this to an empty object rather than a
-    // the default, which is a null object. This allows
-    // other code to use json.value("key", <default>) on
-    // the parsed token.
-    this->parsedAccessToken = json(json::value_t::object);
-  }
+  this->obtainedAt   = obtainedAt;
+  // An object, never null, so the claims can be read with value().
+  this->parsedAccessToken = this->accessToken.empty()
+                                ? json::object()
+                                : parseAccessToken(this->accessToken);
 }
 
 
 bool TokenCacheEntry::isExpired() {
-  long long currentTimestamp = getSecondsSinceEpoch();
-  // We need to get the "exp" key from the parsed access token, but only
-  // if it exists. That's harder to do that one would hope.
-  long long expiresAt    = this->parsedAccessToken.value<long long>("exp", 0LL);
-  long long timeToExpiry = expiresAt - currentTimestamp;
+  const long long now = getSecondsSinceEpoch();
   if (getLogLevel() <= LL_TRACE) {
     WriteLog(LL_TRACE,
-             "  Current timestamp: " + std::to_string(currentTimestamp));
-    WriteLog(LL_TRACE,
-             "  Token expires timestamp: " + std::to_string(expiresAt));
-    WriteLog(LL_TRACE,
-             "  Token expires in " + std::to_string(timeToExpiry) + " seconds");
+             "  Token exp: " +
+                 std::to_string(
+                     this->parsedAccessToken.value<long long>("exp", 0LL)) +
+                 ", obtained at: " + std::to_string(this->obtainedAt) +
+                 ", now: " + std::to_string(now));
   }
-  long long issuedAt = this->parsedAccessToken.value<long long>("iat", 0LL);
-  return tokenNeedsRefresh(currentTimestamp, expiresAt, issuedAt);
+  return accessTokenNeedsRefresh(now,
+                                 this->accessToken,
+                                 this->parsedAccessToken,
+                                 this->obtainedAt,
+                                 this->tokenLifetime);
 }
 
 
 void TokenCacheEntry::setAccessToken(std::string accessToken) {
   this->accessToken       = accessToken;
-  this->parsedAccessToken = parseAccessToken(accessToken);
+  this->parsedAccessToken = parseAccessToken(this->accessToken);
+  this->obtainedAt        = getSecondsSinceEpoch();
+}
+
+void TokenCacheEntry::clearAccessToken() {
+  this->accessToken       = "";
+  this->parsedAccessToken = json::object();
+  this->obtainedAt        = 0;
+}
+
+void TokenCacheEntry::setTokenLifetime(long long seconds) {
+  this->tokenLifetime = seconds;
+}
+
+long long TokenCacheEntry::getObtainedAt() const {
+  return this->obtainedAt;
 }
 
 void TokenCacheEntry::setRefreshToken(std::string refreshToken) {
@@ -158,6 +194,7 @@ TokenCacheEntry readTokenCache(const std::string& tokenId) {
       tokenData.value("encryptedAccessToken", "");
   std::string encryptedRefreshToken =
       tokenData.value("encryptedRefreshToken", "");
+  const auto obtainedAt = tokenData.value<long long>("obtainedAt", 0LL);
 
   try {
     std::string accessToken  = userDecryptString(encryptedAccessToken);
@@ -165,7 +202,7 @@ TokenCacheEntry readTokenCache(const std::string& tokenId) {
 
     // Return a cache entry for these.
     WriteLog(LL_TRACE, "  Token cache read successfully");
-    return TokenCacheEntry(accessToken, refreshToken, tokenId);
+    return {accessToken, refreshToken, tokenId, obtainedAt};
   } catch (const std::runtime_error& e) {
     // There was an error getting the encrypted content. Clean it up and remove
     // from TrinoODBCTokenCache.json
@@ -231,6 +268,7 @@ void writeTokenCache(TokenCacheEntry cacheEntry) {
         userEncryptString(cacheEntry.getAccessToken());
     inputJsonData[tokenId]["encryptedRefreshToken"] =
         userEncryptString(cacheEntry.getRefreshToken());
+    inputJsonData[tokenId]["obtainedAt"] = cacheEntry.getObtainedAt();
   } catch (const std::exception& e) {
     WriteLog(LL_WARN,
              "  WARNING: Not caching tokens, encryption failed: " +

@@ -86,3 +86,18 @@ TEST(DriverConfigTest, ConnectionStringTokenWinsOverDsnToken) {
       {{"accessToken", "from-dsn"}, {"accesstoken", "from-connection-string"}});
   EXPECT_EQ(config.getAccessToken(), "from-connection-string");
 }
+
+TEST(DriverConfigTest, TokenLifetime) {
+  EXPECT_EQ(driverConfigFromKVPs({}).getTokenLifetime(), 0);
+  EXPECT_EQ(
+      driverConfigFromKVPs({{"tokenlifetime", " 28800 "}}).getTokenLifetime(),
+      28800);
+  EXPECT_EQ(driverConfigFromKVPs({{"tokenLifetime", ""}}).getTokenLifetime(),
+            0);
+  EXPECT_THROW(driverConfigFromKVPs({{"tokenlifetime", "8h"}}),
+               std::invalid_argument);
+  EXPECT_THROW(driverConfigFromKVPs({{"tokenlifetime", "-1"}}),
+               std::invalid_argument);
+  DriverConfig config = driverConfigFromKVPs({{"tokenlifetime", "3600"}});
+  EXPECT_EQ(driverConfigToKVPs(config).at("tokenLifetime"), "3600");
+}

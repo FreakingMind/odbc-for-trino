@@ -247,6 +247,24 @@ void ConnectionConfig::setTlsOptions(const TlsOptions& options) {
   this->tlsOptions = options;
 }
 
+void ConnectionConfig::setTokenLifetime(long long seconds) {
+  this->authConfigPtr->setTokenLifetime(seconds);
+}
+
+bool ConnectionConfig::renewRejectedCredentials() {
+  std::string challenge;
+  const auto it = this->responseHeaderData.find("www-authenticate");
+  if (it != this->responseHeaderData.end()) {
+    challenge = it->second;
+  }
+  const bool renew = this->authConfigPtr->onCredentialsRejected(challenge);
+  if (renew) {
+    WriteLog(LL_INFO,
+             "  Trino rejected the access token (HTTP 401): logging in again");
+  }
+  return renew;
+}
+
 std::string const ConnectionConfig::getStatementUrl() {
   return (this->hostname) + ":" + std::to_string(port) + "/v1/statement";
 }

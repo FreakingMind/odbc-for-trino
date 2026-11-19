@@ -35,6 +35,7 @@ class DriverConfig {
     std::string user             = "";
     std::string password         = "";
     std::string accessToken      = "";
+    long long tokenLifetime      = 0;
 
     // Metadata describing the status of this config object.
     bool isSaved = false;
@@ -106,6 +107,11 @@ class DriverConfig {
     void setPassword(std::string password);
     std::string getAccessToken();
     void setAccessToken(std::string accessToken);
+
+    // Seconds an OAuth token whose expiry can't be read is used before
+    // logging in again; 0 (default): until the server rejects it.
+    long long getTokenLifetime() const;
+    void setTokenLifetime(std::string seconds);
 
     // Narrow (SQL_C_CHAR) data encoding: auto | UTF-8 | IANA name (macOS).
     // See resolveAnsiEncoding in src/platform/textEncoding.hpp.

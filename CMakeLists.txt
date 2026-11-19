@@ -276,6 +276,7 @@ enable_testing()
 find_package(GTest CONFIG REQUIRED)
 add_executable(TestDriver
     "test/auth/authFlowsTest.cpp"
+    "test/auth/tokenRenewalTest.cpp"
     "test/connections/connectTest.cpp"
     "test/connections/testCatalogSchema.cpp"
     "test/fixtures/sqlDriverConnectFixture.cpp"
@@ -354,6 +355,7 @@ set(TRINO_ODBC_UNIT_TEST_SUITES
     TimezoneTest
     TlsOptionsTest
     TokenExpiryTest
+    TokenParserTest
     ValuePtrHelperTest
 )
 if (TRINO_ODBC_UNICODE_API)
@@ -378,6 +380,17 @@ add_test(NAME integration COMMAND TestDriver --gtest_filter=-${TRINO_ODBC_UNIT_T
 set_tests_properties(integration PROPERTIES
                      LABELS integration
                      ENVIRONMENT "TRINO_ODBC_TOKEN_CACHE=none")
+
+# Token renewal against a stand-in Trino (test/replay/fake_trino_oauth.py):
+# self-contained, so it runs with the unit tests everywhere.
+find_package(Python3 COMPONENTS Interpreter)
+if (Python3_Interpreter_FOUND)
+  add_test(NAME token_renewal
+           COMMAND ${Python3_EXECUTABLE}
+                   ${CMAKE_CURRENT_SOURCE_DIR}/test/replay/fake_trino_oauth.py run --
+                   $<TARGET_FILE:TestDriver> --gtest_filter=TokenRenewalTest.*)
+  set_tests_properties(token_renewal PROPERTIES LABELS unit)
+endif()
 
 # The integration tests that can run against recorded Trino responses
 # (test/replay): all but performance, memory and authentication tests. CI

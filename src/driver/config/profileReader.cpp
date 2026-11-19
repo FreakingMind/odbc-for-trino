@@ -138,6 +138,7 @@ DriverConfig readDriverConfigFromProfile(std::string dsn) {
   // Stored in clear text: prefer letting the application ask for them.
   config.setPassword(readFromPrivateProfile(dsn, "password"));
   config.setAccessToken(readFromPrivateProfile(dsn, "accessToken"));
+  config.setTokenLifetime(readFromPrivateProfile(dsn, "tokenLifetime"));
 
   std::string secretEncryptionLevel =
       readFromPrivateProfile(dsn, "secretEncryptionLevel");

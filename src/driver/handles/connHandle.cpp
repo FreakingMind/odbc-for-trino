@@ -106,6 +106,7 @@ void Connection::configure(DriverConfig config) {
   tls.verification = parseSslVerification(config.getSslVerification());
   tls.caFile       = config.getSslCaFile();
   this->connectionConfig->setTlsOptions(tls);
+  this->connectionConfig->setTokenLifetime(config.getTokenLifetime());
 }
 
 std::string Connection::getCurrentCatalog() {
