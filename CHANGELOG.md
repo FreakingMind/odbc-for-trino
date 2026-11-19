@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-19
+
 ### Added
 
 - `tokenLifetime` option: how long an OAuth token whose expiry can't be read
@@ -99,6 +101,7 @@ First release.
 - Date, time and timestamp columns convert to each other as ODBC specifies
   (Excel for Mac fetches DATE columns as timestamps).
 
-[Unreleased]: https://github.com/FreakingMind/odbc-for-trino/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/FreakingMind/odbc-for-trino/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/FreakingMind/odbc-for-trino/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/FreakingMind/odbc-for-trino/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/FreakingMind/odbc-for-trino/releases/tag/v0.1.0
