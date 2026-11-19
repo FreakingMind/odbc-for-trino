@@ -163,7 +163,7 @@ container.
 
 | Workflow | Runs on | Checks |
 |---|---|---|
-| macOS CI | Pushes to branches, pull requests | Debug and ASan + UBSan builds with unit tests, a leak check, clang-format, the universal release build and the installer; clang-tidy on the files a pull request changes |
+| macOS CI | Pushes to branches, pull requests | Debug and ASan + UBSan builds with unit tests, a leak check, clang-format, the universal release build and the installer; clang-tidy on the lines a pull request changes |
 | Windows CI | Pushes to branches, pull requests | x64 Debug build with unit tests, and integration tests against recorded Trino responses |
 | Pull Request Code Scan | Pull requests changing C++ files | Trailing whitespace, final newlines, clang-format |
 | Make a Release | Tags `vX.Y.Z` | Windows and macOS installers, draft release |

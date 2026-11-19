@@ -10,10 +10,14 @@ Releases are made from tags of the form `vX.Y.Z` ([Semantic Versioning](https://
    and `install/TrinoODBC_x86.wxs` (`Version`; Windows Installer upgrades
    need it to grow). Move the *Unreleased* entries in
    [CHANGELOG.md](../CHANGELOG.md) under the new version with the release
-   date and add its compare link. Commit as `chore(release): vX.Y.Z`.
+   date and add its compare link. Open a pull request titled
+   `chore(release): vX.Y.Z` from a `release/vX.Y.Z` branch and merge it
+   once CI passes.
 3. For larger changes, test the release builds: Excel on Windows (32 and 64
    bit as needed) and Excel for Mac with the universal build.
-4. Push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`. The *Make a
+4. Tag the merged commit on `main` and push the tag:
+   `git switch main && git pull && git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`.
+   The *Make a
    Release* workflow builds the Windows installers (MSI) and the macOS
    installer (`TrinoODBC-X.Y.Z.pkg`) and creates a draft release with them.
 5. Edit the draft: paste the changelog section, then publish it.

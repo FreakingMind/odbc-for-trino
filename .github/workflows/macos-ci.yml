@@ -156,15 +156,19 @@ jobs:
       - name: Configure
         run: cmake --preset macos-debug
 
-      - name: clang-tidy on changed files
+      # Only the lines a pull request changes are checked, so the inherited
+      # code can be cleaned up step by step while new code stays clean.
+      # Windows-only files aren't in the macOS compile database and are
+      # skipped.
+      - name: clang-tidy on changed lines
         if: github.event_name == 'pull_request'
         run: |
-          CHANGED=$(git diff --name-only --diff-filter=d \
-            "origin/${{ github.base_ref }}...HEAD" -- 'src/*.cpp')
-          if [ -z "$CHANGED" ]; then
-            echo "No C++ sources changed."
-            exit 0
-          fi
-          "$(brew --prefix llvm)/bin/clang-tidy" -p out/build/macos-debug \
-            --extra-arg=-isysroot"$(xcrun --show-sdk-path)" \
-            --warnings-as-errors='*' $CHANGED
+          LLVM="$(brew --prefix llvm)"
+          git diff -U0 "origin/${{ github.base_ref }}...HEAD" \
+              -- 'src/*.cpp' 'src/*.hpp' \
+            | python3 "$LLVM/share/clang/clang-tidy-diff.py" -p1 \
+                -path out/build/macos-debug \
+                -clang-tidy-binary "$LLVM/bin/clang-tidy" \
+                -extra-arg=-isysroot"$(xcrun --show-sdk-path)" \
+                -iregex '.*\.(cpp|hpp)' -only-check-in-db \
+                -warnings-as-errors='*' -quiet -hide-progress -j 4

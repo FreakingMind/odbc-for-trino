@@ -1,5 +1,5 @@
 ---
-# clang-tidy configuration. CI runs it on files changed in a pull request,
+# clang-tidy configuration. CI runs it on the lines a pull request changes,
 # so the inherited upstream code can be cleaned up incrementally.
 Checks: >
   -*,
@@ -22,6 +22,7 @@ Checks: >
   -modernize-use-nodiscard,
   performance-*,
   portability-*,
+  -portability-avoid-pragma-once,
   readability-container-size-empty,
   readability-duplicate-include,
   readability-implicit-bool-conversion,
