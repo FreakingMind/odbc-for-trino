@@ -66,7 +66,22 @@ jobs:
               'test/replay/trino_replay.py', 'replay',
               '--recordings', 'test/replay/recordings.json.gz', '--port', '18080',
               '--verbose')
-          Start-Sleep -Seconds 2
+          # Wait until the server accepts connections (it can take a few
+          # seconds on a busy runner); a fixed sleep made the first test flaky.
+          $ready = $false
+          for ($i = 0; $i -lt 60 -and -not $ready; $i++) {
+            try {
+              $client = [System.Net.Sockets.TcpClient]::new('127.0.0.1', 18080)
+              $client.Dispose()
+              $ready = $true
+            } catch {
+              Start-Sleep -Milliseconds 500
+            }
+          }
+          if (-not $ready) {
+            Get-Content "$env:RUNNER_TEMP\replay.log" -ErrorAction SilentlyContinue
+            throw 'The replay server did not start'
+          }
           try {
             # -V streams the test output, so a hang shows where it is.
             ctest --test-dir out/build/x64-debug -L replay -V --timeout 600
