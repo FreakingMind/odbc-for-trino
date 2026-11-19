@@ -24,7 +24,8 @@ of a driver log with `loglevel=Trace`. For security problems see
 4. Never hardcode host names, credentials or environment-specific settings:
    make them DSN or connection-string options.
 5. Format with the repository's `.clang-format` (CI checks it) and keep
-   clang-tidy and compiler warnings clean for the code you touch.
+   clang-tidy and compiler warnings clean for the code you touch: CI runs
+   clang-tidy on the lines a pull request changes and fails on any finding.
 6. Write commit messages in the [Conventional Commits](https://www.conventionalcommits.org/)
    format, `type(scope): summary`, with a body that explains why. Types:
    `feat`, `fix`, `docs`, `test`, `ci`, `build`, `refactor`, `perf`,
@@ -34,7 +35,13 @@ of a driver log with `loglevel=Trace`. For security problems see
 
 ## Pull requests
 
-Keep pull requests focused on one change. CI must pass on macOS and Windows.
+All changes, including the maintainer's, go through pull requests: `main` is
+protected and only accepts pull requests whose CI passes on macOS and
+Windows. Work on a branch named after the change (`feat/password-auth`,
+`fix/date-columns`, `docs/readme`), keep each pull request focused on one
+change and give it a Conventional Commits title: pull requests are squash
+merged, so the title becomes the commit on `main`.
+
 Describe how you tested the change, including the client application if it is
 about Excel or Power BI behaviour.
 
