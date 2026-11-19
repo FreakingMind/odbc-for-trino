@@ -72,36 +72,6 @@ jobs:
            exit 1
          fi
 
-      # Run the clang-format check
-      - name: Check clang-format
-        run: |
-          # Install clang-format
-          sudo apt-get update
-          sudo apt-get install -y clang-format
-
-          # Find modified .cpp and .hpp files in the pull request that differ
-          # from what's in the main branch
-          MODIFIED_FILES=$(git diff --name-only origin/main...HEAD -- '*.cpp' '*.hpp')
-
-          if [ -z "$MODIFIED_FILES" ]; then
-            echo "No .cpp or .hpp files were modified."
-            exit 0
-          fi
-
-          # Count how many files clang-format modifies
-          CLANG_FORMAT_ISSUES=0
-          for FILE in $MODIFIED_FILES; do
-            # Run clang-format and check for differences in
-            # each file
-            clang-format -i $FILE
-            if ! git diff --quiet $FILE; then
-              echo "$FILE would be modified by clang-format."
-              CLANG_FORMAT_ISSUES=1
-            fi
-          done
-
-          # If any files were modified, fail the step.
-          if [ "$CLANG_FORMAT_ISSUES" -ne 0 ]; then
-            echo "See above - Some files would have been formatted by clang-format."
-            exit 1
-          fi
+      # clang-format is checked by macOS CI (lint job) with Homebrew's LLVM;
+      # a second check with another clang-format version would
+      # disagree on some lines.
