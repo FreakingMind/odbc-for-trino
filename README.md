@@ -9,9 +9,10 @@ An ODBC driver for [Trino](https://trino.io/), built for Microsoft Excel on
 Windows and macOS. It lets spreadsheet users browse catalogs, run SQL and load
 query results into Excel, and also works with Power BI Desktop on Windows.
 
-Based on [trinodb/trino-odbc](https://github.com/trinodb/trino-odbc), extended
-with macOS support, fixes for Windows, Excel for Mac text encodings and
-additional authentication methods.
+The project started as a fork of
+[trinodb/trino-odbc](https://github.com/trinodb/trino-odbc) and has since added
+macOS support, fixes for Windows, Excel for Mac text encodings and additional
+authentication methods.
 
 ## Contents
 
