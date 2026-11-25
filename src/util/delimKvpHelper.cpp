@@ -176,7 +176,7 @@ parseKVPsFromSemicolonDelimStr(const std::string& kvpStr) {
   bool lowercaseKeys      = true;
   bool trimKeysWhitespace = true;
   bool stripDoubleQuotes  = false;
-  bool bracedValues       = true;
+  const bool bracedValues = true;
   return parseKVPsFromDelimStr(kvpStr,
                                delimiter,
                                lowercaseKeys,
@@ -191,7 +191,7 @@ parseKVPsFromCommaDelimStr(const std::string& kvpStr, bool forceLowercaseKeys) {
   bool lowercaseKeys      = forceLowercaseKeys;
   bool trimKeysWhitespace = true;
   bool stripDoubleQuotes  = true;
-  bool bracedValues       = false;
+  const bool bracedValues = false;
   return parseKVPsFromDelimStr(kvpStr,
                                delimiter,
                                lowercaseKeys,

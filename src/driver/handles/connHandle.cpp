@@ -1,6 +1,7 @@
 #include "connHandle.hpp"
 
 #include "../../platform/textEncoding.hpp"
+#include "../../trinoAPIWrapper/authProvider/authCredentials.hpp"
 #include "../../util/writeLog.hpp"
 
 Connection::Connection(EnvironmentConfig* environmentConfig) {
@@ -88,8 +89,9 @@ void Connection::configure(DriverConfig config) {
       config.getOidcScope(),
       config.getGrantType(),
       config.getTokenEndpoint(),
-      AuthCredentials{
-          config.getUser(), config.getPassword(), config.getAccessToken()});
+      AuthCredentials{.user        = config.getUser(),
+                      .password    = config.getPassword(),
+                      .accessToken = config.getAccessToken()});
 
   // Default catalog and schema of the session.
   const std::string catalog =
