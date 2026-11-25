@@ -4,6 +4,7 @@
 #include <sql.h>
 #include <sqlext.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <mutex>
 #include <odbcinst.h>
@@ -20,6 +21,9 @@ namespace {
 
 // A value no real setting has: tells "key missing" from "key empty".
 constexpr const char* MISSING_SENTINEL = "\x01<missing>";
+
+// Longer values are cut off.
+constexpr std::size_t MAX_PROFILE_VALUE_BYTES = 1024UL * 1024UL;
 
 /*
 Which odbc.ini holds a DSN, as an iodbcinst config mode.
@@ -95,13 +99,13 @@ std::string readFromPrivateProfile(std::string dsn, std::string key) {
                                    static_cast<int>(value.size()),
                                    "ODBC.INI");
     if (length < static_cast<int>(value.size()) - 1 ||
-        value.size() >= 1024 * 1024) {
+        value.size() >= MAX_PROFILE_VALUE_BYTES) {
       break;
     }
     value.assign(value.size() * 4, '\0');
   }
   value.back() = '\0';
-  return std::string(value.data());
+  return {value.data()};
 }
 
 

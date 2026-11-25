@@ -33,13 +33,14 @@ SQLRETURN SQL_API SQLConnect(SQLHDBC ConnectionHandle,
     // The application's user name and password override the data source,
     // like UID and PWD in a connection string; empty ones keep it.
     if (UserNameChars != nullptr) {
-      std::string user = stringFromChar(UserNameChars, NameLength2);
+      const std::string user = stringFromChar(UserNameChars, NameLength2);
       if (!user.empty()) {
         config.setUser(user);
       }
     }
     if (AuthenticationChars != nullptr) {
-      std::string password = stringFromChar(AuthenticationChars, NameLength3);
+      const std::string password =
+          stringFromChar(AuthenticationChars, NameLength3);
       if (!password.empty()) {
         config.setPassword(password);
       }

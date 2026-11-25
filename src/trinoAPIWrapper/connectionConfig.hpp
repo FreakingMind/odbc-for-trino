@@ -50,7 +50,7 @@ class ConnectionConfig {
                      std::string clientSecret,
                      std::string oidcScope,
                      std::string grantType,
-                     std::string tokenEndpoint,
+                     const std::string& tokenEndpoint,
                      const AuthCredentials& credentials = {});
 
     ~ConnectionConfig();

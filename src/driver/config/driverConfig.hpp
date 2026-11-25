@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "../../trinoAPIWrapper/apiAuthMethod.hpp"
 #include "../../util/writeLog.hpp"
@@ -10,7 +11,9 @@
 
 extern std::map<std::string, std::string> DRIVER_CONFIG_DEFAULT_VALUES;
 extern std::vector<std::string> LOG_LEVEL_NAMES;
-extern std::vector<std::string> AUTH_METHOD_NAMES;
+
+// The values of authmethod, in the order the setup dialog shows them.
+const std::vector<std::string>& authMethodNames();
 
 class DriverConfig {
   private:

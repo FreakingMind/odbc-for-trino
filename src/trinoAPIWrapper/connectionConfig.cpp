@@ -1,7 +1,9 @@
 #include "connectionConfig.hpp"
 
+#include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
+#include <string>
 
 #ifdef _WIN32
 #include <windns.h>
@@ -14,11 +16,14 @@
 #include "../util/callbackHelper.hpp"
 #include "../util/stringTrim.hpp"
 #include "../util/writeLog.hpp"
+#include "apiAuthMethod.hpp"
+#include "authProvider/authCredentials.hpp"
 #include "authProvider/clientCredAuthProvider.hpp"
 #include "authProvider/credentialsAuthProvider.hpp"
 #include "authProvider/deviceFlowAuthProvider.hpp"
 #include "authProvider/externalAuthProvider.hpp"
 #include "authProvider/noAuthProvider.hpp"
+#include "tlsOptions.hpp"
 
 
 using json = nlohmann::json;
@@ -130,7 +135,7 @@ ConnectionConfig::ConnectionConfig(std::string hostname,
                                    std::string clientSecret,
                                    std::string oidcScope,
                                    std::string grantType,
-                                   std::string tokenEndpoint,
+                                   const std::string& tokenEndpoint,
                                    const AuthCredentials& credentials) {
 
   this->hostname       = hostname;

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -69,10 +70,11 @@ std::string effectiveAccessToken(const AuthCredentials& credentials) {
   // A password is normally what the application's login prompt (PWD) just
   // supplied: it wins over a token stored in the data source, which may have
   // expired. Pasted tokens often carry stray spaces or line breaks.
-  std::string token = credentials.password.empty() ? credentials.accessToken
-                                                   : credentials.password;
-  const char* whitespace = " \t\r\n";
-  const size_t first     = token.find_first_not_of(whitespace);
+  const std::string token = credentials.password.empty()
+                                ? credentials.accessToken
+                                : credentials.password;
+  const char* whitespace  = " \t\r\n";
+  const size_t first      = token.find_first_not_of(whitespace);
   if (first == std::string::npos) {
     return "";
   }

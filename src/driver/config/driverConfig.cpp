@@ -3,7 +3,9 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "../../trinoAPIWrapper/apiAuthMethod.hpp"
 #include "../../trinoAPIWrapper/tlsOptions.hpp"
 #include "../../util/capitalize.hpp"
 #include "../../util/stringTrim.hpp"
@@ -34,19 +36,17 @@ std::map<std::string, LogLevel> LOG_NAME_TO_LOG_LEVEL = {
     std::make_pair("None", LL_NONE),
 };
 
-std::vector<std::string> AUTH_METHOD_NAMES = {"No Auth",
-                                              "Password",
-                                              "Access Token",
-                                              "External Auth",
-                                              "OIDC Client Cred Auth",
-                                              "Device Flow"};
-
-std::vector<ApiAuthMethod> AUTH_METHOD_VALUES = {AM_NO_AUTH,
-                                                 AM_PASSWORD,
-                                                 AM_ACCESS_TOKEN,
-                                                 AM_EXTERNAL_AUTH,
-                                                 AM_CLIENT_CRED_AUTH,
-                                                 AM_DEVICE_FLOW};
+// A function rather than a global: building the list can throw, which can't
+// be caught during static initialization.
+const std::vector<std::string>& authMethodNames() {
+  static const std::vector<std::string> names = {"No Auth",
+                                                 "Password",
+                                                 "Access Token",
+                                                 "External Auth",
+                                                 "OIDC Client Cred Auth",
+                                                 "Device Flow"};
+  return names;
+}
 
 std::map<ApiAuthMethod, std::string> AUTH_METHOD_TO_AUTH_NAME = {
     std::make_pair(AM_NO_AUTH, "No Auth"),
@@ -151,11 +151,11 @@ void DriverConfig::setAuthMethod(ApiAuthMethod authMethod) {
   this->authMethod = authMethod;
 }
 void DriverConfig::setAuthMethod(std::string authMethod) {
-  std::string casedAuthMethod = capitalizedCase(authMethod);
-  auto it                     = AUTH_NAME_TO_AUTH_METHOD.find(casedAuthMethod);
+  const std::string casedAuthMethod = capitalizedCase(authMethod);
+  const auto it = AUTH_NAME_TO_AUTH_METHOD.find(casedAuthMethod);
   if (it == AUTH_NAME_TO_AUTH_METHOD.end()) {
     std::string names;
-    for (const std::string& name : AUTH_METHOD_NAMES) {
+    for (const std::string& name : authMethodNames()) {
       names += (names.empty() ? "" : ", ") + name;
     }
     throw std::invalid_argument("Unknown authmethod \"" + authMethod +
@@ -253,7 +253,7 @@ std::string DriverConfig::getPassword() {
 
 void DriverConfig::setPassword(std::string password) {
   // Not trimmed: spaces can be part of a password.
-  this->password = password;
+  this->password = std::move(password);
 }
 
 std::string DriverConfig::getAccessToken() {

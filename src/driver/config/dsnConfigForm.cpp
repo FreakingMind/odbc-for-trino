@@ -310,7 +310,7 @@ void DSNForm::ShowDSNForm() {
 
   WriteLog(LL_TRACE, "  Creating Auth Method Combobox");
   HWND hwndAuthMethod =
-      comboboxMaker(form, 130, ID_COMBO_AUTHMETHOD, AUTH_METHOD_NAMES);
+      comboboxMaker(form, 130, ID_COMBO_AUTHMETHOD, authMethodNames());
 
   WriteLog(LL_TRACE, "  Pre-populating the text fields");
   setEditText(hwndDsn, this->configResult.getDSN());
